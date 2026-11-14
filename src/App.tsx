@@ -15,7 +15,7 @@ import {
   Target,
   Upload,
 } from 'lucide-react'
-import { toPng } from 'html-to-image'
+import { toBlob, toPng } from 'html-to-image'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import './App.css'
 
@@ -303,32 +303,80 @@ function App() {
     setIsExportingPng(true)
     setNotice(null)
     try {
-      const dataUrl = await toPng(captureTarget, {
+      const options = {
         cacheBust: true,
-        pixelRatio: 3,
+        pixelRatio: 2,
         backgroundColor: theme === 'light' ? '#f4f5f1' : '#171d1b',
         skipFonts: true,
         style: { margin: '0', maxWidth: 'none' },
-      })
+      }
+      await toPng(captureTarget, options)
+      const blob = await toBlob(captureTarget, options)
+      if (!blob) {
+        throw new Error('The browser did not create a PNG image.')
+      }
+
       const now = new Date()
       const date = [
         now.getFullYear(),
         String(now.getMonth() + 1).padStart(2, '0'),
         String(now.getDate()).padStart(2, '0'),
       ].join('-')
+      const file = new File([blob], `ninegrid-${date}.png`, {
+        type: 'image/png',
+      })
+      const isMobileOrTablet =
+        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+      if (
+        isMobileOrTablet &&
+        typeof navigator.canShare === 'function' &&
+        typeof navigator.share === 'function'
+      ) {
+        try {
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'NineGrid' })
+            setNotice({ message: t.pngSuccess, kind: 'success' })
+            return
+          }
+        } catch {
+          // A dismissed or unavailable share sheet falls back to downloading.
+        }
+      }
+
+      const url = URL.createObjectURL(file)
       const link = document.createElement('a')
-      link.href = dataUrl
-      link.download = `ninegrid-${date}.png`
+      link.href = url
+      link.download = file.name
+      link.target = '_blank'
+      link.rel = 'noopener'
       document.body.append(link)
-      link.click()
-      link.remove()
+      try {
+        link.click()
+      } catch (downloadError) {
+        const imageTab = window.open(url, '_blank')
+        if (!imageTab) {
+          const reason =
+            downloadError instanceof Error
+              ? downloadError.message
+              : String(downloadError)
+          throw new Error(
+            `Download failed: ${reason}. The browser also blocked opening the image in a new tab.`,
+          )
+        }
+        imageTab.opener = null
+      } finally {
+        link.remove()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
       setNotice({ message: t.pngSuccess, kind: 'success' })
     } catch (error) {
       setNotice({
         message:
           error instanceof Error
             ? t.pngError(error.message)
-            : t.pngError(''),
+            : t.pngError(String(error)),
         kind: 'error',
       })
     } finally {
