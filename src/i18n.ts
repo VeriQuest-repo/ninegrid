@@ -47,6 +47,7 @@ export type Translation = {
   legendLinked: string
   legendAction: string
   footerMessage: string
+  footerSupport: string
   footerBrand: string
   resetConfirm: string
   resetSuccess: string
@@ -119,6 +120,7 @@ export const translations: Record<Language, Translation> = {
     legendLinked: '자동 연동 영역',
     legendAction: '클릭해 실천 완료',
     footerMessage: '작은 실천이 모여, 큰 변화를 만듭니다.',
+    footerSupport: '개발자에게 커피 후원하기',
     footerBrand: 'NINEGRID · by VERIQUEST',
     resetConfirm: '보드를 처음 템플릿으로 되돌릴까요?',
     resetSuccess: '기본 템플릿으로 초기화했어요.',
@@ -192,6 +194,7 @@ export const translations: Record<Language, Translation> = {
     legendLinked: 'Linked areas',
     legendAction: 'Click to complete an action',
     footerMessage: 'Small steps add up to meaningful change.',
+    footerSupport: 'Buy me a coffee',
     footerBrand: 'NINEGRID · by VERIQUEST',
     resetConfirm: 'Reset the board to its original template?',
     resetSuccess: 'The board has been reset to the template.',
@@ -263,6 +266,7 @@ export const translations: Record<Language, Translation> = {
     legendLinked: '自動連動する分野',
     legendAction: 'クリックして完了',
     footerMessage: '小さな行動が集まり、大きな変化になります。',
+    footerSupport: '開発者にコーヒーを贈る',
     footerBrand: 'NINEGRID · by VERIQUEST',
     resetConfirm: 'ボードを初期テンプレートに戻しますか？',
     resetSuccess: 'ボードを初期テンプレートに戻しました。',
@@ -334,6 +338,7 @@ export const translations: Record<Language, Translation> = {
     legendLinked: '自动关联领域',
     legendAction: '点击标记完成',
     footerMessage: '每一小步，都会汇成大改变。',
+    footerSupport: '请开发者喝杯咖啡',
     footerBrand: 'NINEGRID · by VERIQUEST',
     resetConfirm: '要将看板恢复为初始模板吗？',
     resetSuccess: '看板已恢复为初始模板。',

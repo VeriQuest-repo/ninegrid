@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  Coffee,
   Download,
   Image,
   Focus,
@@ -792,6 +793,19 @@ function App() {
 
       <footer className="page-footer">
         <span>{t.footerMessage}</span>
+        <a
+          className="footer-support"
+          href={
+            language === 'ko'
+              ? 'https://ctee.kr/place/veriquest'
+              : 'https://ko-fi.com/veriquest'
+          }
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <Coffee aria-hidden="true" size={14} />
+          <span>{t.footerSupport}</span>
+        </a>
         <span className="footer-brand">{t.footerBrand}</span>
       </footer>
     </main>
