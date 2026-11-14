@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+  color: #29332f;
+  background: #f4f5f1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid #84b3a5;
+  outline-offset: 2px;
+}
+
+::selection {
+  color: #173c31;
+  background: #cce5db;
+}
