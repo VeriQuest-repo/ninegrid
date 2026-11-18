@@ -34,6 +34,10 @@ const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
   49: 6,
   50: 7,
 }
+const THEME_COLORS: Record<Theme, string> = {
+  light: '#f4f5f1',
+  dark: '#171d1b',
+}
 
 type BoardCell = {
   text: string
@@ -215,7 +219,22 @@ function App() {
     document.documentElement.dataset.theme = theme
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : language
     document.title = t.pageTitle
-  }, [theme, language, t.pageTitle])
+
+    // 앱에서 고른 테마에 맞춰 브라우저 상단바 색을 갱신
+    document
+      .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+      .forEach((meta) => {
+        meta.content = THEME_COLORS[theme]
+      })
+
+    // 선택한 언어에 맞춰 검색 설명 갱신
+    const description = document.querySelector<HTMLMetaElement>(
+      'meta[name="description"]',
+    )
+    if (description) {
+      description.content = t.pageDescription
+    }
+  }, [theme, language, t.pageTitle, t.pageDescription])
 
   function persistState(nextState: PersistedState) {
     setAppState(nextState)
