@@ -2,6 +2,8 @@
 
 태블릿과 PC에 맞춘 9×9 만다라트 목표 관리 앱입니다. 중심 목표의 주변 8개 영역은 바깥 블록의 제목 칸과 자동으로 연결되며, 64개의 세부 실천을 체크해 달성률을 확인할 수 있습니다.
 
+<img src="public/og.png" alt="NineGrid 화면" width="720">
+
 **바로 사용하기:** https://ninegrid.veriquest.workers.dev/
 
 ## 주요 기능
@@ -42,7 +44,9 @@ npm run preview   # 빌드 결과 미리보기
 ## 폴더 구조
 
 ```text
+index.html  메타 태그(OG 등)와 앱 진입 HTML
 src/
+  main.tsx    앱 진입점
   App.tsx     보드 UI와 상태 관리
   i18n.ts     다국어 문구
   App.css     스타일
