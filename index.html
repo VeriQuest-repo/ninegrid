@@ -3,14 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta 
-      name="description" 
-      content="태블릿과 PC에 최적화된 9×9 만다라트 보드. 81칸 실시간 연동, 포커스 모드, 달성률 체크, 이미지 저장을 무료로 지원합니다." />
-    <meta name="theme-color" content="#f4f5f1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
     <title>NineGrid — 9×9 만다라트 목표 계획 보드 | by VeriQuest</title>
+    <meta
+      name="description"
+      content="태블릿과 PC에 최적화된 9×9 만다라트 보드. 81칸 실시간 연동, 포커스 모드, 달성률 체크, 이미지 저장을 무료로 지원합니다."
+    />
+    <link rel="canonical" href="https://ninegrid.veriquest.workers.dev/" />
+
+    <!-- 브라우저 상단바 색상 (앱의 --page 값과 동일) -->
+    <meta name="theme-color" content="#f4f5f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171d1b" media="(prefers-color-scheme: dark)" />
+
+    <!-- 공유 미리보기 (Open Graph / Twitter) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NineGrid" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:title" content="NineGrid — 9×9 만다라트 목표 계획 보드" />
+    <meta
+      property="og:description"
+      content="81칸 실시간 연동, 포커스 모드, 달성률 체크, 이미지 저장을 무료로 지원하는 만다라트 보드."
+    />
+    <meta property="og:url" content="https://ninegrid.veriquest.workers.dev/" />
+    <meta property="og:image" content="https://ninegrid.veriquest.workers.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NineGrid — 9×9 만다라트 목표 계획 보드" />
+    <meta
+      name="twitter:description"
+      content="81칸 실시간 연동, 포커스 모드, 달성률 체크, 이미지 저장을 무료로."
+    />
+    <meta name="twitter:image" content="https://ninegrid.veriquest.workers.dev/og.png" />
   </head>
   <body>
+    <noscript>NineGrid를 사용하려면 브라우저에서 JavaScript를 켜 주세요.</noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

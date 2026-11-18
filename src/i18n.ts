@@ -2,6 +2,7 @@ export type Language = 'ko' | 'en' | 'ja' | 'zh'
 
 export type Translation = {
   pageTitle: string
+  pageDescription: string
   homeLabel: string
   languageLabel: string
   focusMode: string
@@ -65,7 +66,9 @@ export type Translation = {
 
 export const translations: Record<Language, Translation> = {
   ko: {
-    pageTitle: 'NineGrid — 만다라트 목표 관리',
+    pageTitle: 'NineGrid — 9×9 만다라트 목표 관리 | by VeriQuest',
+    pageDescription:
+      '태블릿과 PC에 최적화된 9×9 만다라트 보드. 81칸 실시간 연동, 포커스 모드, 달성률 체크, 이미지 저장을 무료로 지원합니다.',
     homeLabel: 'NineGrid 홈',
     languageLabel: '언어 선택',
     focusMode: '포커스 모드',
@@ -139,7 +142,9 @@ export const translations: Record<Language, Translation> = {
     restoreError: 'JSON 파일을 복원하지 못했어요.',
   },
   en: {
-    pageTitle: 'NineGrid — Mandalart Goal Planner',
+    pageTitle: 'NineGrid — 9×9 Mandalart Goal Planner | by VeriQuest',
+    pageDescription:
+      'A 9×9 Mandalart goal planner optimized for tablets and desktops. Linked 81 cells, focus mode, progress tracking, and PNG export, all free.',
     homeLabel: 'NineGrid home',
     languageLabel: 'Select language',
     focusMode: 'Focus',
@@ -211,7 +216,9 @@ export const translations: Record<Language, Translation> = {
     restoreError: 'Could not restore the JSON file.',
   },
   ja: {
-    pageTitle: 'NineGrid — マンダラート目標管理',
+    pageTitle: 'NineGrid — 9×9 マンダラート目標計画ボード | by VeriQuest',
+    pageDescription:
+      'タブレットとPCに最適化された9×9のマンダラートボード。81マスの連動、フォーカス表示、達成率チェック、画像保存を無料で使えます。',
     homeLabel: 'NineGrid ホーム',
     languageLabel: '言語を選択',
     focusMode: 'フォーカス',
@@ -283,7 +290,9 @@ export const translations: Record<Language, Translation> = {
     restoreError: 'JSONファイルを復元できませんでした。',
   },
   zh: {
-    pageTitle: 'NineGrid — 九宫格目标管理',
+    pageTitle: 'NineGrid — 9×9 九宫格目标计划看板 | by VeriQuest',
+    pageDescription:
+      '专为平板和电脑优化的 9×9 九宫格目标看板。支持 81 格联动、专注模式、完成率统计和图片保存，完全免费。',
     homeLabel: 'NineGrid 首页',
     languageLabel: '选择语言',
     focusMode: '专注模式',
