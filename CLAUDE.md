@@ -12,7 +12,7 @@
 - `npm run build` — 빌드
 - `npm run lint` — 린트 (코드 수정 후 반드시 실행해 검증)
 
-작업 환경은 Windows다. 터미널 명령어는 PowerShell 기준으로 작성한다.
+작업 환경은 Windows 또는 macOS다. 터미널 명령어는 현재 세션의 OS에 맞춰 작성한다 (Windows는 PowerShell, macOS는 zsh). OS를 알 수 없으면 양쪽 명령어를 함께 적는다.
 
 ## 코드 규칙
 
