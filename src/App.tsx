@@ -8,6 +8,7 @@ import {
   Download,
   Image,
   Focus,
+  Info,
   Grid2X2,
   Link2,
   Moon,
@@ -21,6 +22,11 @@ import { detectLanguage, getTranslation, isLanguage, type Language } from './i18
 import './App.css'
 
 const STORAGE_KEY = 'ninegrid-board-v1'
+// 백업 알림 상태는 보드 데이터와 분리해 별도 키에 저장한다. (#4)
+// 보드 저장 구조(ninegrid-board-v1)와 백업 파일 형식은 바뀌지 않는다.
+const BACKUP_META_KEY = 'ninegrid-backup-meta-v1'
+const REMINDER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+const CLOCK_TICK_MS = 60 * 60 * 1000
 const CELL_COUNT = 81
 const CENTER_CELL = 40
 const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
@@ -49,6 +55,19 @@ type PersistedState = {
   cells: BoardCell[]
   theme: Theme
   language: Language
+}
+
+type BackupMeta = {
+  // 마지막으로 JSON 백업(또는 복원)한 시각 (ms)
+  lastBackupAt: number | null
+  // 백업 이후 처음 보드를 수정한 시각 (ms). 백업하지 않은 변경이 없으면 null
+  dirtySince: number | null
+  // "나중에"를 누른 경우 배너를 다시 띄울 시각 (ms)
+  snoozedUntil: number | null
+  // "다시 보지 않기"로 배너를 끈 경우 true (버튼의 점 표시는 유지)
+  remindersOff: boolean
+  // "이 브라우저에만 저장돼요" 첫 안내를 확인했는지
+  storageNoticeSeen: boolean
 }
 
 type Notice = {
@@ -106,6 +125,59 @@ function isPersistedState(value: unknown): value is PersistedState {
     isTheme(value.theme) &&
     (!('language' in value) || isLanguage(value.language))
   )
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isBackupMeta(value: unknown): value is BackupMeta {
+  return (
+    isRecord(value) &&
+    isNullableNumber(value.lastBackupAt) &&
+    isNullableNumber(value.dirtySince) &&
+    isNullableNumber(value.snoozedUntil) &&
+    typeof value.remindersOff === 'boolean' &&
+    typeof value.storageNoticeSeen === 'boolean'
+  )
+}
+
+function boardHasContent(cells: BoardCell[]) {
+  return cells.some(hasText)
+}
+
+function saveBackupMeta(meta: BackupMeta) {
+  try {
+    localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta))
+  } catch {
+    // 알림 상태 저장 실패는 보드 사용에 영향이 없으므로 무시한다.
+  }
+}
+
+// 백업 알림 상태를 읽는다. 이 기능 이전부터 쓰던 사용자는 키가 없으므로,
+// 보드에 내용이 있으면 "아직 백업한 적 없음 + 지금부터 변경 있음"으로 시작한다.
+function readBackupMeta(cells: BoardCell[]): BackupMeta {
+  try {
+    const saved = localStorage.getItem(BACKUP_META_KEY)
+    if (saved !== null) {
+      const parsed: unknown = JSON.parse(saved)
+      if (isBackupMeta(parsed)) {
+        return parsed
+      }
+    }
+  } catch {
+    // 읽기 실패 시 아래 기본값을 쓴다.
+  }
+
+  const meta: BackupMeta = {
+    lastBackupAt: null,
+    dirtySince: boardHasContent(cells) ? Date.now() : null,
+    snoozedUntil: null,
+    remindersOff: false,
+    storageNoticeSeen: false,
+  }
+  saveBackupMeta(meta)
+  return meta
 }
 
 function createInitialCells(): BoardCell[] {
@@ -216,6 +288,25 @@ function App() {
   const importInput = useRef<HTMLInputElement>(null)
   const boardFrame = useRef<HTMLDivElement>(null)
   const [isExportingPng, setIsExportingPng] = useState(false)
+  const [backupMeta, setBackupMeta] = useState(() =>
+    readBackupMeta(initialState.state.cells),
+  )
+  const [now, setNow] = useState(() => Date.now())
+
+  const hasUnsavedChanges =
+    backupMeta.dirtySince !== null && boardHasContent(cells)
+  const reminderBase = backupMeta.lastBackupAt ?? backupMeta.dirtySince
+  const showStorageNotice = !backupMeta.storageNoticeSeen
+  const showBackupReminder =
+    !showStorageNotice &&
+    hasUnsavedChanges &&
+    !backupMeta.remindersOff &&
+    reminderBase !== null &&
+    now - reminderBase >= REMINDER_INTERVAL_MS &&
+    (backupMeta.snoozedUntil === null || now >= backupMeta.snoozedUntil)
+  const backupLabel = hasUnsavedChanges
+    ? `${t.backupDownload} · ${t.unsavedChanges}`
+    : t.backupDownload
 
   const writtenCount = cells.reduce(
     (count, cell, index) => count + (isDetailCell(index) && hasText(cell) ? 1 : 0),
@@ -228,6 +319,12 @@ function App() {
   )
   const progress =
     writtenCount === 0 ? 0 : Math.round((completedCount / writtenCount) * 100)
+
+  // 탭을 오래 열어 두어도 7일 경과 여부가 갱신되도록 시간을 주기적으로 갱신
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -263,6 +360,41 @@ function App() {
     }
   }
 
+  function updateBackupMeta(update: (meta: BackupMeta) => BackupMeta) {
+    setBackupMeta((current) => {
+      const next = update(current)
+      saveBackupMeta(next)
+      return next
+    })
+  }
+
+  function markEdited() {
+    if (backupMeta.dirtySince !== null) {
+      return
+    }
+    updateBackupMeta((meta) => ({ ...meta, dirtySince: Date.now() }))
+  }
+
+  function markBackedUp() {
+    const timestamp = Date.now()
+    setNow(timestamp)
+    updateBackupMeta((meta) => ({
+      ...meta,
+      lastBackupAt: timestamp,
+      dirtySince: null,
+      snoozedUntil: null,
+    }))
+  }
+
+  function snoozeReminder() {
+    const timestamp = Date.now()
+    setNow(timestamp)
+    updateBackupMeta((meta) => ({
+      ...meta,
+      snoozedUntil: timestamp + REMINDER_INTERVAL_MS,
+    }))
+  }
+
   function updateText(index: number, text: string) {
     const next = cells.map((cell) => ({ ...cell }))
     // 텍스트를 모두 지우면 완료 표시도 함께 해제한다.
@@ -278,6 +410,7 @@ function App() {
     }
 
     persistState({ cells: next, theme, language })
+    markEdited()
   }
 
   function toggleDone(index: number) {
@@ -292,6 +425,7 @@ function App() {
       theme,
       language,
     })
+    markEdited()
   }
 
   function resetBoard() {
@@ -300,6 +434,8 @@ function App() {
     }
 
     persistState({ cells: createInitialCells(), theme, language })
+    // 빈 보드는 잃을 내용이 없으므로 "백업하지 않은 변경"을 해제한다.
+    updateBackupMeta((meta) => ({ ...meta, dirtySince: null }))
     setSelectedBlock(4)
     setFocusMode(false)
     setNotice({ message: t.resetSuccess, kind: 'success' })
@@ -325,6 +461,7 @@ function App() {
     link.click()
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    markBackedUp()
     setNotice({ message: t.backupSuccess, kind: 'success' })
   }
 
@@ -454,6 +591,8 @@ function App() {
         theme: parsed.theme,
         language: restoredLanguage,
       })
+      // 복원한 보드는 백업 파일과 같으므로 백업된 상태로 본다.
+      markBackedUp()
       setSelectedBlock(4)
       setFocusMode(false)
       setNotice({
@@ -646,13 +785,16 @@ function App() {
             <Image aria-hidden="true" size={17} />
           </button>
           <button
-            aria-label={t.backupDownload}
-            className="icon-button"
+            aria-label={backupLabel}
+            className="icon-button icon-button--backup"
             onClick={downloadBackup}
-            title={t.backupDownload}
+            title={backupLabel}
             type="button"
           >
             <Download aria-hidden="true" size={17} />
+            {hasUnsavedChanges && (
+              <span aria-hidden="true" className="unsaved-dot" />
+            )}
           </button>
           <button
             aria-label={t.backupRestore}
@@ -724,6 +866,66 @@ function App() {
           </button>
         </div>
       </header>
+
+      {showStorageNotice ? (
+        <section
+          aria-label={t.storageNoticeLabel}
+          className="backup-banner backup-banner--info"
+          role="status"
+        >
+          <Info aria-hidden="true" className="backup-banner__icon" size={16} />
+          <p className="backup-banner__message">{t.storageNotice}</p>
+          <div className="backup-banner__actions">
+            <button
+              className="banner-button banner-button--primary"
+              onClick={() =>
+                updateBackupMeta((meta) => ({ ...meta, storageNoticeSeen: true }))
+              }
+              type="button"
+            >
+              {t.storageNoticeConfirm}
+            </button>
+          </div>
+        </section>
+      ) : (
+        showBackupReminder && (
+          <section
+            aria-label={t.backupReminderLabel}
+            className="backup-banner backup-banner--warning"
+            role="status"
+          >
+            <Download aria-hidden="true" className="backup-banner__icon" size={16} />
+            <p className="backup-banner__message">
+              {backupMeta.lastBackupAt === null
+                ? t.backupReminderNever
+                : t.backupReminderStale(
+                    Math.floor((now - backupMeta.lastBackupAt) / (24 * 60 * 60 * 1000)),
+                  )}
+            </p>
+            <div className="backup-banner__actions">
+              <button
+                className="banner-button banner-button--primary"
+                onClick={downloadBackup}
+                type="button"
+              >
+                {t.backupNow}
+              </button>
+              <button className="banner-button" onClick={snoozeReminder} type="button">
+                {t.remindLater}
+              </button>
+              <button
+                className="banner-button banner-button--quiet"
+                onClick={() =>
+                  updateBackupMeta((meta) => ({ ...meta, remindersOff: true }))
+                }
+                type="button"
+              >
+                {t.dontShowAgain}
+              </button>
+            </div>
+          </section>
+        )
+      )}
 
       <section aria-label={t.progressLabel} className="overview">
         <div className="overview__intro">
