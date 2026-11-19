@@ -215,6 +215,100 @@ button {
   background: var(--line);
 }
 
+.icon-button--backup {
+  position: relative;
+}
+
+.unsaved-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--surface);
+  border-radius: 50%;
+  background: var(--goal-ink);
+}
+
+.backup-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.backup-banner--info {
+  border-color: var(--line-strong);
+  background: var(--accent-soft);
+}
+
+.backup-banner--warning {
+  border-color: var(--line-strong);
+  background: var(--goal);
+}
+
+.backup-banner__icon {
+  flex: 0 0 auto;
+  color: var(--accent-strong);
+}
+
+.backup-banner--warning .backup-banner__icon {
+  color: var(--goal-ink);
+}
+
+.backup-banner__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.backup-banner__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.banner-button {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.banner-button:hover {
+  border-color: var(--accent);
+}
+
+.banner-button--primary {
+  border-color: var(--accent-strong);
+  color: var(--on-accent);
+  background: var(--accent-strong);
+}
+
+.banner-button--primary:hover {
+  background: var(--accent);
+}
+
+.banner-button--quiet {
+  border-color: transparent;
+  color: var(--muted);
+  background: transparent;
+}
+
 .overview {
   min-height: 117px;
   display: flex;
@@ -834,6 +928,20 @@ button {
 
   .topbar {
     height: 60px;
+  }
+
+  .backup-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .backup-banner__message {
+    flex-basis: calc(100% - 26px);
+  }
+
+  .backup-banner__actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .brand {

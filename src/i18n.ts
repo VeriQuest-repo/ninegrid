@@ -61,6 +61,16 @@ export type Translation = {
   pngSuccess: string
   pngError: (message: string) => string
   backupSuccess: string
+  unsavedChanges: string
+  storageNoticeLabel: string
+  storageNotice: string
+  storageNoticeConfirm: string
+  backupReminderLabel: string
+  backupReminderNever: string
+  backupReminderStale: (days: number) => string
+  backupNow: string
+  remindLater: string
+  dontShowAgain: string
   restoreSuccess: string
   invalidBackup: string
   restoreError: string
@@ -141,6 +151,18 @@ export const translations: Record<Language, Translation> = {
         ? `PNG 이미지 생성에 실패했어요: ${message}`
         : 'PNG 이미지 생성에 실패했어요.',
     backupSuccess: 'JSON 백업 파일을 다운로드했어요.',
+    unsavedChanges: '백업하지 않은 변경 사항이 있어요',
+    storageNoticeLabel: '데이터 저장 안내',
+    storageNotice:
+      '보드는 이 브라우저에만 저장돼요. 브라우저 데이터를 지우면 사라지니 중요한 내용은 JSON으로 백업하세요.',
+    storageNoticeConfirm: '확인',
+    backupReminderLabel: '백업 알림',
+    backupReminderNever: '아직 보드를 백업한 적이 없어요. JSON 파일로 백업해 두세요.',
+    backupReminderStale: (days) =>
+      `마지막 백업 후 ${days}일이 지났고, 백업하지 않은 변경 사항이 있어요.`,
+    backupNow: '지금 백업',
+    remindLater: '나중에',
+    dontShowAgain: '다시 보지 않기',
     restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
@@ -218,6 +240,18 @@ export const translations: Record<Language, Translation> = {
     pngError: (message) =>
       message ? `Could not create PNG: ${message}` : 'Could not create PNG.',
     backupSuccess: 'JSON backup downloaded.',
+    unsavedChanges: 'You have changes that are not backed up',
+    storageNoticeLabel: 'Data storage notice',
+    storageNotice:
+      'Your board is saved only in this browser. Clearing browser data will erase it, so back up important boards as JSON.',
+    storageNoticeConfirm: 'Got it',
+    backupReminderLabel: 'Backup reminder',
+    backupReminderNever: "You haven't backed up your board yet. Save a JSON backup to keep it safe.",
+    backupReminderStale: (days) =>
+      `It's been ${days} ${days === 1 ? 'day' : 'days'} since your last backup, and you have unsaved changes.`,
+    backupNow: 'Back up now',
+    remindLater: 'Later',
+    dontShowAgain: "Don't show again",
     restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
@@ -294,6 +328,18 @@ export const translations: Record<Language, Translation> = {
     pngError: (message) =>
       message ? `PNG画像を作成できませんでした: ${message}` : 'PNG画像を作成できませんでした。',
     backupSuccess: 'JSONバックアップを保存しました。',
+    unsavedChanges: 'バックアップしていない変更があります',
+    storageNoticeLabel: 'データ保存のお知らせ',
+    storageNotice:
+      'ボードはこのブラウザにのみ保存されます。ブラウザのデータを消すと失われるため、大切な内容はJSONでバックアップしてください。',
+    storageNoticeConfirm: 'OK',
+    backupReminderLabel: 'バックアップのお知らせ',
+    backupReminderNever: 'まだボードをバックアップしていません。JSONファイルで保存しておきましょう。',
+    backupReminderStale: (days) =>
+      `前回のバックアップから${days}日が経ち、バックアップしていない変更があります。`,
+    backupNow: '今すぐバックアップ',
+    remindLater: 'あとで',
+    dontShowAgain: '今後表示しない',
     restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
@@ -370,6 +416,17 @@ export const translations: Record<Language, Translation> = {
     pngError: (message) =>
       message ? `无法生成 PNG 图片：${message}` : '无法生成 PNG 图片。',
     backupSuccess: 'JSON 备份文件已下载。',
+    unsavedChanges: '有尚未备份的更改',
+    storageNoticeLabel: '数据存储提示',
+    storageNotice:
+      '看板只保存在当前浏览器中。清除浏览器数据后将会丢失，重要内容请导出 JSON 备份。',
+    storageNoticeConfirm: '知道了',
+    backupReminderLabel: '备份提醒',
+    backupReminderNever: '你还没有备份过看板。建议导出 JSON 文件保存。',
+    backupReminderStale: (days) => `距离上次备份已过 ${days} 天，且有尚未备份的更改。`,
+    backupNow: '立即备份',
+    remindLater: '稍后',
+    dontShowAgain: '不再显示',
     restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',
