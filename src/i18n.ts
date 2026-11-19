@@ -20,6 +20,7 @@ export type Translation = {
   intro: string
   progressLabel: string
   completedCount: (count: number, total: number) => string
+  writtenSummary: (written: number) => string
   detailCount: string
   boardLabel: string
   boardSize: string
@@ -44,6 +45,7 @@ export type Translation = {
   expand: string
   completed: string
   undoCompleted: string
+  completedDisabled: string
   legendCenter: string
   legendLinked: string
   legendAction: string
@@ -85,8 +87,9 @@ export const translations: Record<Language, Translation> = {
     headlineAccent: '오늘의 한 걸음으로.',
     intro: '가운데 목표에서 시작해 8개의 영역과 작은 실천으로 채워보세요.',
     progressLabel: '전체 달성률',
-    completedCount: (count, total) => `${count} / ${total}개 실천 완료`,
-    detailCount: '64개의 세부 실천',
+    completedCount: (count, total) => `완료 ${count} / 작성 ${total}`,
+    writtenSummary: (written) => `작성한 실천 ${written}개 · 완료 0개`,
+    detailCount: '작성한 실천 기준',
     boardLabel: '만다라트 보드',
     boardSize: '9 × 9',
     autoSaving: '자동 저장 중',
@@ -119,6 +122,7 @@ export const translations: Record<Language, Translation> = {
     expand: '확대',
     completed: '실천 완료 표시',
     undoCompleted: '완료 표시 해제',
+    completedDisabled: '실천 내용을 먼저 작성하세요',
     legendCenter: '중심 목표',
     legendLinked: '자동 연동 영역',
     legendAction: '클릭해 실천 완료',
@@ -161,8 +165,10 @@ export const translations: Record<Language, Translation> = {
     headlineAccent: 'start with one small step.',
     intro: 'Start with your central goal, then fill in eight areas and small actions.',
     progressLabel: 'Overall progress',
-    completedCount: (count, total) => `${count} / ${total} actions done`,
-    detailCount: '64 small actions',
+    completedCount: (count, total) => `${count} done / ${total} written`,
+    writtenSummary: (written) =>
+      `${written} ${written === 1 ? 'action' : 'actions'} written · 0 done`,
+    detailCount: 'Based on written actions',
     boardLabel: 'Mandalart board',
     boardSize: '9 × 9',
     autoSaving: 'Saved automatically',
@@ -195,6 +201,7 @@ export const translations: Record<Language, Translation> = {
     expand: 'Expand',
     completed: 'Mark action complete',
     undoCompleted: 'Undo completion',
+    completedDisabled: 'Write an action first',
     legendCenter: 'Central goal',
     legendLinked: 'Linked areas',
     legendAction: 'Click to complete an action',
@@ -235,8 +242,9 @@ export const translations: Record<Language, Translation> = {
     headlineAccent: '今日の小さな一歩から。',
     intro: '中央の目標から始めて、8つの分野と小さな行動を書き込みましょう。',
     progressLabel: '全体の達成率',
-    completedCount: (count, total) => `${total}件中 ${count}件完了`,
-    detailCount: '64の小さな行動',
+    completedCount: (count, total) => `完了 ${count} / 記入 ${total}`,
+    writtenSummary: (written) => `記入した行動 ${written}件 · 完了 0件`,
+    detailCount: '記入した行動が基準',
     boardLabel: 'マンダラートボード',
     boardSize: '9 × 9',
     autoSaving: '自動保存中',
@@ -269,6 +277,7 @@ export const translations: Record<Language, Translation> = {
     expand: '拡大',
     completed: '行動を完了にする',
     undoCompleted: '完了を取り消す',
+    completedDisabled: '先に行動を記入してください',
     legendCenter: '中心目標',
     legendLinked: '自動連動する分野',
     legendAction: 'クリックして完了',
@@ -309,8 +318,9 @@ export const translations: Record<Language, Translation> = {
     headlineAccent: '从今天的一小步开始。',
     intro: '从中心目标出发，填写八个领域和每日小行动。',
     progressLabel: '总体完成率',
-    completedCount: (count, total) => `已完成 ${count} / ${total} 项行动`,
-    detailCount: '64 项小行动',
+    completedCount: (count, total) => `完成 ${count} / 已填写 ${total}`,
+    writtenSummary: (written) => `已填写 ${written} 项行动 · 完成 0 项`,
+    detailCount: '按已填写的行动计算',
     boardLabel: '九宫格目标看板',
     boardSize: '9 × 9',
     autoSaving: '自动保存中',
@@ -343,6 +353,7 @@ export const translations: Record<Language, Translation> = {
     expand: '放大',
     completed: '标记为已完成',
     undoCompleted: '取消完成标记',
+    completedDisabled: '请先填写行动内容',
     legendCenter: '中心目标',
     legendLinked: '自动关联领域',
     legendAction: '点击标记完成',

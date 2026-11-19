@@ -22,7 +22,6 @@ import './App.css'
 
 const STORAGE_KEY = 'ninegrid-board-v1'
 const CELL_COUNT = 81
-const DETAIL_COUNT = 64
 const CENTER_CELL = 40
 const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
   30: 0,
@@ -78,7 +77,14 @@ function isTheme(value: unknown): value is Theme {
   return value === 'light' || value === 'dark'
 }
 
-function normalizeSyncedTitles(cells: BoardCell[]) {
+function hasText(cell: BoardCell) {
+  return cell.text.trim() !== ''
+}
+
+// 불러온 보드를 현재 규칙에 맞게 정리한다.
+// - 중앙 블록의 하위 목표를 바깥 블록 제목에 다시 동기화한다.
+// - 이전 버전에서 저장된 "빈 칸인데 체크됨" 상태를 해제한다. (#3)
+function normalizeCells(cells: BoardCell[]) {
   const nextCells = cells.map((cell) => ({ ...cell }))
 
   for (let index = 0; index < CELL_COUNT; index += 1) {
@@ -88,7 +94,9 @@ function normalizeSyncedTitles(cells: BoardCell[]) {
     }
   }
 
-  return nextCells
+  return nextCells.map((cell) =>
+    cell.done && !hasText(cell) ? { ...cell, done: false } : cell,
+  )
 }
 
 function isPersistedState(value: unknown): value is PersistedState {
@@ -133,7 +141,7 @@ function readInitialState(): { state: PersistedState; notice: Notice | null } {
 
     return {
       state: {
-        cells: normalizeSyncedTitles(parsed.cells),
+        cells: normalizeCells(parsed.cells),
         theme: parsed.theme,
         language: isLanguage(parsed.language) ? parsed.language : language,
       },
@@ -209,11 +217,17 @@ function App() {
   const boardFrame = useRef<HTMLDivElement>(null)
   const [isExportingPng, setIsExportingPng] = useState(false)
 
-  const completedCount = cells.reduce(
-    (count, cell, index) => count + (isDetailCell(index) && cell.done ? 1 : 0),
+  const writtenCount = cells.reduce(
+    (count, cell, index) => count + (isDetailCell(index) && hasText(cell) ? 1 : 0),
     0,
   )
-  const progress = Math.round((completedCount / DETAIL_COUNT) * 100)
+  const completedCount = cells.reduce(
+    (count, cell, index) =>
+      count + (isDetailCell(index) && hasText(cell) && cell.done ? 1 : 0),
+    0,
+  )
+  const progress =
+    writtenCount === 0 ? 0 : Math.round((completedCount / writtenCount) * 100)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -251,7 +265,12 @@ function App() {
 
   function updateText(index: number, text: string) {
     const next = cells.map((cell) => ({ ...cell }))
-    next[index] = { ...next[index], text }
+    // 텍스트를 모두 지우면 완료 표시도 함께 해제한다.
+    next[index] = {
+      ...next[index],
+      text,
+      done: text.trim() === '' ? false : next[index].done,
+    }
 
     const target = getSyncTarget(index)
     if (target !== null) {
@@ -262,7 +281,7 @@ function App() {
   }
 
   function toggleDone(index: number) {
-    if (!isDetailCell(index)) {
+    if (!isDetailCell(index) || !hasText(cells[index])) {
       return
     }
 
@@ -431,7 +450,7 @@ function App() {
         ? parsed.language
         : language
       persistState({
-        cells: normalizeSyncedTitles(parsed.cells),
+        cells: normalizeCells(parsed.cells),
         theme: parsed.theme,
         language: restoredLanguage,
       })
@@ -481,7 +500,7 @@ function App() {
       isHub ? 'mandala-cell--hub' : '',
       isSubgoal ? 'mandala-cell--subgoal' : '',
       isSynced ? 'mandala-cell--synced' : '',
-      cell.done && isAction ? 'mandala-cell--done' : '',
+      cell.done && isAction && hasText(cell) ? 'mandala-cell--done' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -523,10 +542,19 @@ function App() {
           )}
           {isAction && (
             <button
-              aria-label={cell.done ? t.undoCompleted : t.completed}
+              aria-disabled={!hasText(cell)}
+              aria-label={
+                !hasText(cell)
+                  ? t.completedDisabled
+                  : cell.done
+                    ? t.undoCompleted
+                    : t.completed
+              }
               aria-pressed={cell.done}
               className="cell-check"
+              disabled={!hasText(cell)}
               onClick={() => toggleDone(index)}
+              title={!hasText(cell) ? t.completedDisabled : undefined}
               type="button"
             >
               {cell.done && <Check aria-hidden="true" size={11} strokeWidth={3} />}
@@ -722,7 +750,11 @@ function App() {
             <span style={{ width: `${progress}%` }} />
           </div>
           <div className="progress-card__bottom">
-            <span>{t.completedCount(completedCount, DETAIL_COUNT)}</span>
+            <span>
+              {completedCount === 0
+                ? t.writtenSummary(writtenCount)
+                : t.completedCount(completedCount, writtenCount)}
+            </span>
             <span>{t.detailCount}</span>
           </div>
         </div>
