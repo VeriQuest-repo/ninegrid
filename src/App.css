@@ -10,6 +10,7 @@
   --accent: #477d6c;
   --accent-strong: #326858;
   --accent-soft: #e6f1ec;
+  --on-accent: #ffffff;
   --goal: #f1e5c9;
   --goal-ink: #765d2b;
   --sync: #f1f5f2;
@@ -29,6 +30,7 @@
   --accent: #86b7a4;
   --accent-strong: #9dcbb8;
   --accent-soft: #2b4037;
+  --on-accent: #ffffff;
   --goal: #493f2c;
   --goal-ink: #e1ca8f;
   --sync: #27322d;
@@ -657,14 +659,22 @@ button {
   padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 50%;
-  color: white;
+  color: var(--on-accent);
   background: var(--surface);
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
-.cell-check:hover {
+.cell-check:not(:disabled):hover {
   transform: scale(1.09);
   border-color: var(--accent);
+}
+
+.cell-check:disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+  border-color: var(--line);
+  background: var(--surface-soft);
+  opacity: 0.6;
 }
 
 .cell-check[aria-pressed="true"] {
