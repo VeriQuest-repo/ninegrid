@@ -14,6 +14,8 @@ export type Translation = {
   themeToDark: string
   themeToLight: string
   reset: string
+  undo: string
+  redo: string
   eyebrow: string
   headline: string
   headlineAccent: string
@@ -92,6 +94,8 @@ export const translations: Record<Language, Translation> = {
     themeToDark: '다크 테마로 변경',
     themeToLight: '라이트 테마로 변경',
     reset: '초기화',
+    undo: '실행 취소',
+    redo: '다시 실행',
     eyebrow: '나만의 만다라트 보드',
     headline: '큰 목표를,',
     headlineAccent: '오늘의 한 걸음으로.',
@@ -182,6 +186,8 @@ export const translations: Record<Language, Translation> = {
     themeToDark: 'Switch to dark theme',
     themeToLight: 'Switch to light theme',
     reset: 'Reset',
+    undo: 'Undo',
+    redo: 'Redo',
     eyebrow: 'YOUR PERSONAL MANDAL-ART',
     headline: 'Dream big,',
     headlineAccent: 'start with one small step.',
@@ -271,6 +277,8 @@ export const translations: Record<Language, Translation> = {
     themeToDark: 'ダークテーマに切り替え',
     themeToLight: 'ライトテーマに切り替え',
     reset: 'リセット',
+    undo: '元に戻す',
+    redo: 'やり直す',
     eyebrow: 'あなたのマンダラート',
     headline: '大きな目標を、',
     headlineAccent: '今日の小さな一歩から。',
@@ -359,6 +367,8 @@ export const translations: Record<Language, Translation> = {
     themeToDark: '切换到深色主题',
     themeToLight: '切换到浅色主题',
     reset: '重置',
+    undo: '撤销',
+    redo: '重做',
     eyebrow: '你的九宫格目标计划',
     headline: '设定远大目标，',
     headlineAccent: '从今天的一小步开始。',

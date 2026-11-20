@@ -12,9 +12,11 @@ import {
   Grid2X2,
   Link2,
   Moon,
+  Redo2,
   RotateCcw,
   Sun,
   Target,
+  Undo2,
   Upload,
 } from 'lucide-react'
 import { toBlob, toPng } from 'html-to-image'
@@ -22,6 +24,7 @@ import {
   CENTER_CELL,
   applyTextEdit,
   boardHasContent,
+  cellsEqual,
   createInitialCells,
   getProgress,
   hasText,
@@ -36,6 +39,15 @@ import {
   type PersistedState,
   type Theme,
 } from './board'
+import {
+  canRedo,
+  canUndo,
+  createHistory,
+  dropUnchangedEntry,
+  pushHistory,
+  redoHistory,
+  undoHistory,
+} from './history'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import './App.css'
 
@@ -55,6 +67,13 @@ const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
   49: 6,
   50: 7,
 }
+// 칸 입력을 한 번의 Undo 기록으로 묶는 시간. 마지막 입력 후 이 시간이 지나거나
+// 입력창을 벗어나면 묶음을 끝낸다. (#5)
+const TEXT_EDIT_IDLE_MS = 1000
+const IS_APPLE_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+const UNDO_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Z' : 'Ctrl+Z'
+const REDO_SHORTCUT = IS_APPLE_PLATFORM ? '⇧⌘Z' : 'Ctrl+Y'
 const THEME_COLORS: Record<Theme, string> = {
   light: '#f4f5f1',
   dark: '#171d1b',
@@ -71,6 +90,17 @@ type BackupMeta = {
   remindersOff: boolean
   // "이 브라우저에만 저장돼요" 첫 안내를 확인했는지
   storageNoticeSeen: boolean
+}
+
+// 입력창에 포커스가 있으면 Ctrl/Cmd+Z를 브라우저 기본 Undo(입력 중인 글자 되돌리기)에 맡긴다.
+function isTextEntryTarget(target: EventTarget | null) {
+  if (target instanceof HTMLTextAreaElement) {
+    return true
+  }
+  if (target instanceof HTMLInputElement) {
+    return !['button', 'checkbox', 'file', 'radio', 'reset', 'submit'].includes(target.type)
+  }
+  return target instanceof HTMLElement && target.isContentEditable
 }
 
 type Notice = {
@@ -198,6 +228,13 @@ function App() {
     readBackupMeta(initialState.state.cells),
   )
   const [now, setNow] = useState(() => Date.now())
+  // 보드(cells) 히스토리. 메모리에만 두고 저장하지 않는다. (#5)
+  const [history, setHistory] = useState(createHistory<BoardCell[]>)
+  // 지금 하나의 기록으로 묶고 있는 입력 칸의 인덱스 (없으면 null)
+  const textEditSession = useRef<number | null>(null)
+  const textEditTimer = useRef<number | null>(null)
+  const latestCells = useRef(cells)
+  const stepHistoryRef = useRef<(direction: 'undo' | 'redo') => void>(() => {})
 
   const hasUnsavedChanges =
     backupMeta.dirtySince !== null && boardHasContent(cells)
@@ -242,6 +279,37 @@ function App() {
       description.content = t.pageDescription
     }
   }, [theme, language, t.pageTitle, t.pageDescription])
+
+  useEffect(() => {
+    latestCells.current = cells
+  }, [cells])
+
+  // 단축키: Ctrl/Cmd+Z 실행 취소, Ctrl+Y 또는 Ctrl/Cmd+Shift+Z 다시 실행
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) {
+        return
+      }
+      const key = event.key.toLowerCase()
+      const isUndo = key === 'z' && !event.shiftKey
+      const isRedo =
+        (key === 'z' && event.shiftKey) ||
+        (key === 'y' && event.ctrlKey && !event.metaKey && !event.shiftKey)
+      if ((!isUndo && !isRedo) || isTextEntryTarget(event.target)) {
+        return
+      }
+      event.preventDefault()
+      stepHistoryRef.current(isUndo ? 'undo' : 'redo')
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (textEditTimer.current !== null) {
+        window.clearTimeout(textEditTimer.current)
+      }
+    }
+  }, [])
 
   function persistState(nextState: PersistedState) {
     setAppState(nextState)
@@ -291,7 +359,63 @@ function App() {
     }))
   }
 
+  function clearTextEditSession() {
+    if (textEditTimer.current !== null) {
+      window.clearTimeout(textEditTimer.current)
+      textEditTimer.current = null
+    }
+    const wasEditing = textEditSession.current !== null
+    textEditSession.current = null
+    return wasEditing
+  }
+
+  // 입력 묶음을 끝낸다. 입력했다가 원래대로 되돌렸다면 빈 기록을 지운다.
+  function endTextEditSession() {
+    if (clearTextEditSession()) {
+      setHistory((current) =>
+        dropUnchangedEntry(current, latestCells.current, cellsEqual),
+      )
+    }
+  }
+
+  // 보드가 바뀌기 직전 상태를 기록한다. (새 작업이므로 Redo 기록은 사라진다)
+  function recordChange(before: BoardCell[]) {
+    setHistory((current) => pushHistory(current, before))
+  }
+
+  function stepHistory(direction: 'undo' | 'redo') {
+    const base = clearTextEditSession()
+      ? dropUnchangedEntry(history, cells, cellsEqual)
+      : history
+    const result =
+      direction === 'undo' ? undoHistory(base, cells) : redoHistory(base, cells)
+    if (result === null) {
+      setHistory(base)
+      return
+    }
+
+    setHistory(result.history)
+    // 기록된 보드도 현재 규칙으로 정리해 빈 칸이 체크된 채 남지 않게 한다.
+    persistState({ cells: normalizeCells(result.value), theme, language })
+    // Undo/Redo도 보드 변경이므로 백업 알림에 반영한다. (#4)
+    markEdited()
+  }
+
+  useEffect(() => {
+    stepHistoryRef.current = stepHistory
+  })
+
   function updateText(index: number, text: string) {
+    if (textEditSession.current !== index) {
+      endTextEditSession()
+      recordChange(cells)
+      textEditSession.current = index
+    }
+    if (textEditTimer.current !== null) {
+      window.clearTimeout(textEditTimer.current)
+    }
+    textEditTimer.current = window.setTimeout(endTextEditSession, TEXT_EDIT_IDLE_MS)
+
     persistState({ cells: applyTextEdit(cells, index, text), theme, language })
     markEdited()
   }
@@ -302,6 +426,8 @@ function App() {
       return
     }
 
+    endTextEditSession()
+    recordChange(cells)
     persistState({ cells: next, theme, language })
     markEdited()
   }
@@ -311,7 +437,12 @@ function App() {
       return
     }
 
-    persistState({ cells: createInitialCells(), theme, language })
+    const emptyCells = createInitialCells()
+    endTextEditSession()
+    if (!cellsEqual(cells, emptyCells)) {
+      recordChange(cells)
+    }
+    persistState({ cells: emptyCells, theme, language })
     // 빈 보드는 잃을 내용이 없으므로 "백업하지 않은 변경"을 해제한다.
     updateBackupMeta((meta) => ({ ...meta, dirtySince: null }))
     setSelectedBlock(4)
@@ -455,6 +586,10 @@ function App() {
       }
 
       const restoredLanguage = backup.language ?? language
+      endTextEditSession()
+      if (!cellsEqual(cells, backup.cells)) {
+        recordChange(cells)
+      }
       persistState({
         cells: backup.cells,
         theme: backup.theme,
@@ -528,6 +663,7 @@ function App() {
           className="mandala-cell__input"
           disabled={isSynced}
           maxLength={70}
+          onBlur={endTextEditSession}
           onChange={(event) => updateText(index, event.target.value)}
           placeholder={placeholder}
           value={cell.text}
@@ -641,6 +777,27 @@ function App() {
           >
             {focusMode ? <Grid2X2 size={16} /> : <Focus size={16} />}
             <span>{focusMode ? t.showAll : t.focusMode}</span>
+          </button>
+          <span className="toolbar-divider" />
+          <button
+            aria-label={t.undo}
+            className="icon-button icon-button--history"
+            disabled={!canUndo(history)}
+            onClick={() => stepHistory('undo')}
+            title={`${t.undo} (${UNDO_SHORTCUT})`}
+            type="button"
+          >
+            <Undo2 aria-hidden="true" size={17} />
+          </button>
+          <button
+            aria-label={t.redo}
+            className="icon-button icon-button--history"
+            disabled={!canRedo(history)}
+            onClick={() => stepHistory('redo')}
+            title={`${t.redo} (${REDO_SHORTCUT})`}
+            type="button"
+          >
+            <Redo2 aria-hidden="true" size={17} />
           </button>
           <span className="toolbar-divider" />
           <button

@@ -203,6 +203,17 @@ button {
   opacity: 0.55;
 }
 
+.icon-button--history:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.icon-button--history:disabled:hover {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--surface);
+}
+
 .icon-button--reset:hover {
   border-color: #e6c6ba;
   color: #a35b46;
@@ -1242,6 +1253,14 @@ button {
 
   .toolbar-divider {
     margin-inline: 1px;
+  }
+}
+
+/* Undo/Redo 버튼이 추가된 툴바가 아주 좁은 화면(예: 320px)에서 넘치지 않도록
+   로고 글자를 숨기고 마크만 남긴다. 링크의 aria-label은 그대로 유지된다. (#5) */
+@media (max-width: 350px) {
+  .brand-name {
+    display: none;
   }
 }
 
