@@ -194,3 +194,11 @@ export function parseBackup(value: unknown): BackupFile | null {
     language: isLanguage(value.language) ? value.language : undefined,
   }
 }
+
+// 두 보드의 내용(텍스트와 완료 상태)이 같은지
+export function cellsEqual(a: BoardCell[], b: BoardCell[]) {
+  return (
+    a.length === b.length &&
+    a.every((cell, index) => cell.text === b[index].text && cell.done === b[index].done)
+  )
+}
