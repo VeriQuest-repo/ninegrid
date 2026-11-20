@@ -76,6 +76,20 @@ export type Translation = {
   restoreSuccess: string
   invalidBackup: string
   restoreError: string
+  samples: string
+  samplesOpen: string
+  samplesHint: string
+  sampleDialogTitle: string
+  sampleDialogIntro: string
+  sampleChoiceLabel: string
+  sampleProgress: (completed: number, total: number) => string
+  sampleOverwrite: string
+  sampleEmptyBoard: string
+  sampleBackupHint: string
+  sampleBackupFirst: string
+  sampleLoad: string
+  cancel: string
+  sampleLoaded: (name: string) => string
 }
 
 export const translations: Record<Language, Translation> = {
@@ -93,7 +107,7 @@ export const translations: Record<Language, Translation> = {
     backupFile: 'JSON 백업 파일 선택',
     themeToDark: '다크 테마로 변경',
     themeToLight: '라이트 테마로 변경',
-    reset: '초기화',
+    reset: '빈 보드로 초기화',
     undo: '실행 취소',
     redo: '다시 실행',
     eyebrow: '나만의 만다라트 보드',
@@ -143,8 +157,8 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '작은 실천이 모여, 큰 변화를 만듭니다.',
     footerSupport: '개발자에게 커피 후원하기',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: '보드를 처음 템플릿으로 되돌릴까요?',
-    resetSuccess: '기본 템플릿으로 초기화했어요.',
+    resetConfirm: '모든 칸을 비우고 빈 보드로 초기화할까요?',
+    resetSuccess: '빈 보드로 초기화했어요.',
     saveError: '자동 저장에 실패했어요. 브라우저 저장 공간을 확인해 주세요.',
     invalidStorage: '저장된 데이터 형식이 올바르지 않아 기본 보드를 열었어요.',
     readStorageError: '저장 데이터를 읽지 못해 기본 보드를 열었어요.',
@@ -170,6 +184,20 @@ export const translations: Record<Language, Translation> = {
     restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
+    samples: '예시 보드',
+    samplesOpen: '샘플 보기',
+    samplesHint: '처음이라면 완성된 예시 보드를 보고 시작해 보세요.',
+    sampleDialogTitle: '예시 보드 불러오기',
+    sampleDialogIntro: '예시를 불러와 구조를 살펴보고, 내용을 고쳐 내 보드로 써 보세요.',
+    sampleChoiceLabel: '예시 보드 선택',
+    sampleProgress: (completed, total) => `실천 ${total}개 중 ${completed}개 완료`,
+    sampleOverwrite: '불러오면 지금 보드의 내용이 예시로 바뀝니다. 불러온 뒤 실행 취소로 되돌릴 수 있어요.',
+    sampleEmptyBoard: '빈 보드에 예시 내용을 채웁니다.',
+    sampleBackupHint: '백업하지 않은 변경이 있어요. 불러오기 전에 JSON 백업을 받아 두는 것을 권장합니다.',
+    sampleBackupFirst: '먼저 백업하기',
+    sampleLoad: '불러오기',
+    cancel: '취소',
+    sampleLoaded: (name) => `'${name}' 예시 보드를 불러왔어요. 실행 취소로 이전 보드로 돌아갈 수 있어요.`,
   },
   en: {
     pageTitle: 'NineGrid — 9×9 Mandalart Goal Planner | by VeriQuest',
@@ -185,7 +213,7 @@ export const translations: Record<Language, Translation> = {
     backupFile: 'Choose JSON backup file',
     themeToDark: 'Switch to dark theme',
     themeToLight: 'Switch to light theme',
-    reset: 'Reset',
+    reset: 'Reset to a blank board',
     undo: 'Undo',
     redo: 'Redo',
     eyebrow: 'YOUR PERSONAL MANDAL-ART',
@@ -236,8 +264,8 @@ export const translations: Record<Language, Translation> = {
     footerMessage: 'Small steps add up to meaningful change.',
     footerSupport: 'Buy me a coffee',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: 'Reset the board to its original template?',
-    resetSuccess: 'The board has been reset to the template.',
+    resetConfirm: 'Clear every cell and reset to a blank board?',
+    resetSuccess: 'The board has been reset to blank.',
     saveError: 'Could not save automatically. Check your browser storage.',
     invalidStorage: 'Saved data is invalid. The default board was opened.',
     readStorageError: 'Could not read saved data. The default board was opened.',
@@ -261,6 +289,20 @@ export const translations: Record<Language, Translation> = {
     restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
+    samples: 'Sample boards',
+    samplesOpen: 'View samples',
+    samplesHint: 'New here? Start by looking at a finished sample board.',
+    sampleDialogTitle: 'Load a sample board',
+    sampleDialogIntro: 'Load a sample to see how a board fits together, then edit it into your own.',
+    sampleChoiceLabel: 'Choose a sample board',
+    sampleProgress: (completed, total) => `${completed} of ${total} actions done`,
+    sampleOverwrite: 'Loading replaces everything on your current board. You can undo it afterwards.',
+    sampleEmptyBoard: 'The sample will fill your blank board.',
+    sampleBackupHint: 'You have changes that are not backed up. We recommend downloading a JSON backup first.',
+    sampleBackupFirst: 'Back up first',
+    sampleLoad: 'Load',
+    cancel: 'Cancel',
+    sampleLoaded: (name) => `Loaded the "${name}" sample. Use Undo to go back to your previous board.`,
   },
   ja: {
     pageTitle: 'NineGrid — 9×9 マンダラート目標計画ボード | by VeriQuest',
@@ -276,7 +318,7 @@ export const translations: Record<Language, Translation> = {
     backupFile: 'JSONバックアップファイルを選択',
     themeToDark: 'ダークテーマに切り替え',
     themeToLight: 'ライトテーマに切り替え',
-    reset: 'リセット',
+    reset: '空のボードにリセット',
     undo: '元に戻す',
     redo: 'やり直す',
     eyebrow: 'あなたのマンダラート',
@@ -326,8 +368,8 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '小さな行動が集まり、大きな変化になります。',
     footerSupport: '開発者にコーヒーを贈る',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: 'ボードを初期テンプレートに戻しますか？',
-    resetSuccess: 'ボードを初期テンプレートに戻しました。',
+    resetConfirm: 'すべてのマスを消して空のボードに戻しますか？',
+    resetSuccess: '空のボードに戻しました。',
     saveError: '自動保存できませんでした。ブラウザーの保存容量を確認してください。',
     invalidStorage: '保存データの形式が正しくないため、初期ボードを開きました。',
     readStorageError: '保存データを読み込めないため、初期ボードを開きました。',
@@ -351,6 +393,20 @@ export const translations: Record<Language, Translation> = {
     restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
+    samples: 'サンプルボード',
+    samplesOpen: 'サンプルを見る',
+    samplesHint: '初めての方は、完成したサンプルボードを見ながら始めてみましょう。',
+    sampleDialogTitle: 'サンプルボードを読み込む',
+    sampleDialogIntro: 'サンプルで全体の構成を確かめ、内容を書き換えて自分のボードにできます。',
+    sampleChoiceLabel: 'サンプルボードを選択',
+    sampleProgress: (completed, total) => `実践 ${total}件中 ${completed}件完了`,
+    sampleOverwrite: '読み込むと、今のボードの内容がサンプルに置き換わります。読み込んだ後に元に戻すこともできます。',
+    sampleEmptyBoard: '空のボードにサンプルの内容を入れます。',
+    sampleBackupHint: 'バックアップしていない変更があります。読み込む前にJSONバックアップをおすすめします。',
+    sampleBackupFirst: '先にバックアップ',
+    sampleLoad: '読み込む',
+    cancel: 'キャンセル',
+    sampleLoaded: (name) => `「${name}」のサンプルを読み込みました。元に戻すで前のボードに戻せます。`,
   },
   zh: {
     pageTitle: 'NineGrid — 9×9 九宫格目标计划看板 | by VeriQuest',
@@ -366,7 +422,7 @@ export const translations: Record<Language, Translation> = {
     backupFile: '选择 JSON 备份文件',
     themeToDark: '切换到深色主题',
     themeToLight: '切换到浅色主题',
-    reset: '重置',
+    reset: '重置为空白看板',
     undo: '撤销',
     redo: '重做',
     eyebrow: '你的九宫格目标计划',
@@ -416,8 +472,8 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '每一小步，都会汇成大改变。',
     footerSupport: '请开发者喝杯咖啡',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: '要将看板恢复为初始模板吗？',
-    resetSuccess: '看板已恢复为初始模板。',
+    resetConfirm: '要清空所有格子，重置为空白看板吗？',
+    resetSuccess: '已重置为空白看板。',
     saveError: '自动保存失败，请检查浏览器存储空间。',
     invalidStorage: '保存的数据格式无效，已打开默认看板。',
     readStorageError: '无法读取保存的数据，已打开默认看板。',
@@ -440,6 +496,20 @@ export const translations: Record<Language, Translation> = {
     restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',
+    samples: '示例看板',
+    samplesOpen: '查看示例',
+    samplesHint: '第一次使用？先看看完整的示例看板吧。',
+    sampleDialogTitle: '载入示例看板',
+    sampleDialogIntro: '载入示例了解看板结构，再修改成你自己的看板。',
+    sampleChoiceLabel: '选择示例看板',
+    sampleProgress: (completed, total) => `${total} 项实践中已完成 ${completed} 项`,
+    sampleOverwrite: '载入后，当前看板的内容会被示例替换。载入后可以撤销。',
+    sampleEmptyBoard: '示例内容将填入空白看板。',
+    sampleBackupHint: '有尚未备份的更改。建议载入前先下载 JSON 备份。',
+    sampleBackupFirst: '先备份',
+    sampleLoad: '载入',
+    cancel: '取消',
+    sampleLoaded: (name) => `已载入“${name}”示例。可用撤销回到之前的看板。`,
   },
 }
 
