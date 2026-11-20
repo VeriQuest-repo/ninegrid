@@ -33,7 +33,7 @@
 
 ## 기술 스택
 
-React 19 · TypeScript · Vite · Tailwind CSS 4 · lucide-react · html-to-image · oxlint
+React 19 · TypeScript · Vite · Tailwind CSS 4 · lucide-react · html-to-image · oxlint · Vitest
 
 ## 개발
 
@@ -42,6 +42,7 @@ npm install
 npm run dev       # 개발 서버
 npm run build     # 타입 검사 + 프로덕션 빌드
 npm run lint      # oxlint
+npm run test      # 단위 테스트 (Vitest)
 npm run preview   # 빌드 결과 미리보기
 ```
 
@@ -52,6 +53,8 @@ index.html  메타 태그(OG 등)와 앱 진입 HTML
 src/
   main.tsx    앱 진입점
   App.tsx     보드 UI와 상태 관리
+  board.ts    보드 규칙 (연동, 체크, 달성률, 백업 검증)
+  board.test.ts  board.ts 단위 테스트
   i18n.ts     다국어 문구
   App.css     스타일
 public/       파비콘, 공유 미리보기 이미지(og.png)

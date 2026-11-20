@@ -18,6 +18,24 @@ import {
   Upload,
 } from 'lucide-react'
 import { toBlob, toPng } from 'html-to-image'
+import {
+  CENTER_CELL,
+  applyTextEdit,
+  boardHasContent,
+  createInitialCells,
+  getProgress,
+  hasText,
+  isDetailCell,
+  isPersistedState,
+  isRecord,
+  isSyncedTitleCell,
+  normalizeCells,
+  parseBackup,
+  toggleCellDone,
+  type BoardCell,
+  type PersistedState,
+  type Theme,
+} from './board'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import './App.css'
 
@@ -27,8 +45,6 @@ const STORAGE_KEY = 'ninegrid-board-v1'
 const BACKUP_META_KEY = 'ninegrid-backup-meta-v1'
 const REMINDER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 const CLOCK_TICK_MS = 60 * 60 * 1000
-const CELL_COUNT = 81
-const CENTER_CELL = 40
 const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
   30: 0,
   31: 1,
@@ -42,19 +58,6 @@ const CENTER_GOAL_HINT_INDEX: Record<number, number> = {
 const THEME_COLORS: Record<Theme, string> = {
   light: '#f4f5f1',
   dark: '#171d1b',
-}
-
-type BoardCell = {
-  text: string
-  done: boolean
-}
-
-type Theme = 'light' | 'dark'
-
-type PersistedState = {
-  cells: BoardCell[]
-  theme: Theme
-  language: Language
 }
 
 type BackupMeta = {
@@ -75,58 +78,6 @@ type Notice = {
   kind: 'success' | 'error'
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isBoardCellArray(value: unknown): value is BoardCell[] {
-  return (
-    Array.isArray(value) &&
-    value.length === CELL_COUNT &&
-    value.every(
-      (cell) =>
-        isRecord(cell) &&
-        typeof cell.text === 'string' &&
-        typeof cell.done === 'boolean',
-    )
-  )
-}
-
-function isTheme(value: unknown): value is Theme {
-  return value === 'light' || value === 'dark'
-}
-
-function hasText(cell: BoardCell) {
-  return cell.text.trim() !== ''
-}
-
-// 불러온 보드를 현재 규칙에 맞게 정리한다.
-// - 중앙 블록의 하위 목표를 바깥 블록 제목에 다시 동기화한다.
-// - 이전 버전에서 저장된 "빈 칸인데 체크됨" 상태를 해제한다. (#3)
-function normalizeCells(cells: BoardCell[]) {
-  const nextCells = cells.map((cell) => ({ ...cell }))
-
-  for (let index = 0; index < CELL_COUNT; index += 1) {
-    const target = getSyncTarget(index)
-    if (target !== null) {
-      nextCells[target] = { ...nextCells[target], text: nextCells[index].text }
-    }
-  }
-
-  return nextCells.map((cell) =>
-    cell.done && !hasText(cell) ? { ...cell, done: false } : cell,
-  )
-}
-
-function isPersistedState(value: unknown): value is PersistedState {
-  return (
-    isRecord(value) &&
-    isBoardCellArray(value.cells) &&
-    isTheme(value.theme) &&
-    (!('language' in value) || isLanguage(value.language))
-  )
-}
-
 function isNullableNumber(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
@@ -140,10 +91,6 @@ function isBackupMeta(value: unknown): value is BackupMeta {
     typeof value.remindersOff === 'boolean' &&
     typeof value.storageNoticeSeen === 'boolean'
   )
-}
-
-function boardHasContent(cells: BoardCell[]) {
-  return cells.some(hasText)
 }
 
 function saveBackupMeta(meta: BackupMeta) {
@@ -178,13 +125,6 @@ function readBackupMeta(cells: BoardCell[]): BackupMeta {
   }
   saveBackupMeta(meta)
   return meta
-}
-
-function createInitialCells(): BoardCell[] {
-  return Array.from({ length: CELL_COUNT }, () => ({
-    text: '',
-    done: false,
-  }))
 }
 
 function readInitialState(): { state: PersistedState; notice: Notice | null } {
@@ -228,40 +168,6 @@ function readInitialState(): { state: PersistedState; notice: Notice | null } {
       },
     }
   }
-}
-
-function getSyncTarget(index: number): number | null {
-  const row = Math.floor(index / 9)
-  const column = index % 9
-  const blockRow = Math.floor(row / 3)
-  const blockColumn = Math.floor(column / 3)
-
-  if (blockRow !== 1 || blockColumn !== 1 || index === CENTER_CELL) {
-    return null
-  }
-
-  const localRow = row % 3
-  const localColumn = column % 3
-  const targetRow = localRow * 3 + 1
-  const targetColumn = localColumn * 3 + 1
-
-  return targetRow * 9 + targetColumn
-}
-
-function isSyncedTitleCell(index: number) {
-  const row = Math.floor(index / 9)
-  const column = index % 9
-  const blockIndex = Math.floor(row / 3) * 3 + Math.floor(column / 3)
-
-  return blockIndex !== 4 && row % 3 === 1 && column % 3 === 1
-}
-
-function isDetailCell(index: number) {
-  const row = Math.floor(index / 9)
-  const column = index % 9
-  const blockIndex = Math.floor(row / 3) * 3 + Math.floor(column / 3)
-
-  return blockIndex !== 4 && !isSyncedTitleCell(index)
 }
 
 function getBlockTitle(cells: BoardCell[], blockIndex: number, language: Language) {
@@ -308,17 +214,7 @@ function App() {
     ? `${t.backupDownload} · ${t.unsavedChanges}`
     : t.backupDownload
 
-  const writtenCount = cells.reduce(
-    (count, cell, index) => count + (isDetailCell(index) && hasText(cell) ? 1 : 0),
-    0,
-  )
-  const completedCount = cells.reduce(
-    (count, cell, index) =>
-      count + (isDetailCell(index) && hasText(cell) && cell.done ? 1 : 0),
-    0,
-  )
-  const progress =
-    writtenCount === 0 ? 0 : Math.round((completedCount / writtenCount) * 100)
+  const { writtenCount, completedCount, progress } = getProgress(cells)
 
   // 탭을 오래 열어 두어도 7일 경과 여부가 갱신되도록 시간을 주기적으로 갱신
   useEffect(() => {
@@ -396,35 +292,17 @@ function App() {
   }
 
   function updateText(index: number, text: string) {
-    const next = cells.map((cell) => ({ ...cell }))
-    // 텍스트를 모두 지우면 완료 표시도 함께 해제한다.
-    next[index] = {
-      ...next[index],
-      text,
-      done: text.trim() === '' ? false : next[index].done,
-    }
-
-    const target = getSyncTarget(index)
-    if (target !== null) {
-      next[target] = { ...next[target], text }
-    }
-
-    persistState({ cells: next, theme, language })
+    persistState({ cells: applyTextEdit(cells, index, text), theme, language })
     markEdited()
   }
 
   function toggleDone(index: number) {
-    if (!isDetailCell(index) || !hasText(cells[index])) {
+    const next = toggleCellDone(cells, index)
+    if (next === null) {
       return
     }
 
-    persistState({
-      cells: cells.map((cell, cellIndex) =>
-        cellIndex === index ? { ...cell, done: !cell.done } : cell,
-      ),
-      theme,
-      language,
-    })
+    persistState({ cells: next, theme, language })
     markEdited()
   }
 
@@ -571,24 +449,15 @@ function App() {
     }
 
     try {
-      const parsed: unknown = JSON.parse(await file.text())
-      if (
-        !isRecord(parsed) ||
-        parsed.format !== 'ninegrid-backup' ||
-        parsed.version !== 1 ||
-        !isBoardCellArray(parsed.cells) ||
-        !isTheme(parsed.theme) ||
-        ('language' in parsed && !isLanguage(parsed.language))
-      ) {
+      const backup = parseBackup(JSON.parse(await file.text()))
+      if (backup === null) {
         throw new Error(t.invalidBackup)
       }
 
-      const restoredLanguage = isLanguage(parsed.language)
-        ? parsed.language
-        : language
+      const restoredLanguage = backup.language ?? language
       persistState({
-        cells: normalizeCells(parsed.cells),
-        theme: parsed.theme,
+        cells: backup.cells,
+        theme: backup.theme,
         language: restoredLanguage,
       })
       // 복원한 보드는 백업 파일과 같으므로 백업된 상태로 본다.
