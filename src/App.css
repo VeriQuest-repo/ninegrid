@@ -15,6 +15,8 @@
   --goal-ink: #765d2b;
   --sync: #f1f5f2;
   --shadow: 0 14px 40px rgb(34 54 44 / 7%);
+  --backdrop: rgb(23 29 27 / 38%);
+  --dialog-shadow: 0 24px 60px rgb(34 54 44 / 22%);
 }
 
 :root[data-theme="dark"] {
@@ -35,6 +37,8 @@
   --goal-ink: #e1ca8f;
   --sync: #27322d;
   --shadow: 0 14px 40px rgb(0 0 0 / 18%);
+  --backdrop: rgb(0 0 0 / 55%);
+  --dialog-shadow: 0 24px 60px rgb(0 0 0 / 45%);
 }
 
 body {
@@ -318,6 +322,193 @@ button {
   border-color: transparent;
   color: var(--muted);
   background: transparent;
+}
+
+/* 빈 보드일 때 보이는 예시 보드 진입점 (#7) */
+.sample-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 9px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.sample-hint__button,
+.sample-dialog__backup .banner-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* 예시 보드 선택 · 덮어쓰기 확인 대화상자 (#7) */
+.sample-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100svh - 32px);
+  margin: auto;
+  overflow-y: auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--dialog-shadow);
+}
+
+.sample-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.sample-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 16px;
+}
+
+.sample-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sample-dialog__header h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.sample-dialog__close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.sample-dialog__close:hover {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.sample-dialog__intro,
+.sample-dialog__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sample-options {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sample-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.sample-option:hover {
+  border-color: var(--line-strong);
+}
+
+.sample-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sample-option input {
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+  accent-color: var(--accent-strong);
+}
+
+.sample-option__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sample-option__name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sample-option__description {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sample-option__progress {
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sample-dialog__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--goal);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sample-dialog__warning > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--goal-ink);
+}
+
+.sample-dialog__warning p {
+  margin: 0;
+}
+
+.sample-dialog__warning .sample-dialog__backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 6px;
+}
+
+.sample-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sample-dialog__actions .banner-button {
+  height: 34px;
+  padding-inline: 16px;
+  font-size: 13px;
 }
 
 .overview {
@@ -955,6 +1146,19 @@ button {
     justify-content: flex-end;
   }
 
+  .sample-dialog__body {
+    gap: 10px;
+    padding: 14px 14px 12px;
+  }
+
+  .sample-dialog__header h2 {
+    font-size: 17px;
+  }
+
+  .sample-option {
+    padding: 8px 10px;
+  }
+
   .brand {
     gap: 7px;
   }
@@ -1256,11 +1460,33 @@ button {
   }
 }
 
-/* Undo/Redo 버튼이 추가된 툴바가 아주 좁은 화면(예: 320px)에서 넘치지 않도록
-   로고 글자를 숨기고 마크만 남긴다. 링크의 aria-label은 그대로 유지된다. (#5) */
-@media (max-width: 350px) {
+/* Undo/Redo(#5)와 예시 보드(#7) 버튼이 추가된 툴바가 좁은 화면(320~480px)에서
+   넘치지 않도록 로고 글자와 구분선을 숨기고 마크만 남긴다. 링크의 aria-label은 그대로 유지된다. */
+@media (max-width: 480px) {
   .brand-name {
     display: none;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .topbar__actions {
+    gap: 2px;
+  }
+}
+
+/* 아이콘 크기가 커지는 641px 직후 구간도 같은 이유로 로고 글자를 숨긴다. (#7) */
+@media (min-width: 641px) and (max-width: 700px) {
+  .brand-name {
+    display: none;
+  }
+}
+
+@media (min-width: 361px) and (max-width: 480px) {
+  .toolbar-button,
+  .icon-button {
+    width: 27px;
   }
 }
 

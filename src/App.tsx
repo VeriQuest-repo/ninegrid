@@ -10,6 +10,7 @@ import {
   Focus,
   Info,
   Grid2X2,
+  LayoutTemplate,
   Link2,
   Moon,
   Redo2,
@@ -18,6 +19,7 @@ import {
   Target,
   Undo2,
   Upload,
+  X,
 } from 'lucide-react'
 import { toBlob, toPng } from 'html-to-image'
 import {
@@ -49,6 +51,7 @@ import {
   undoHistory,
 } from './history'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
+import { SAMPLE_IDS, getSampleInfo, loadSampleCells, type SampleId } from './samples'
 import './App.css'
 
 const STORAGE_KEY = 'ninegrid-board-v1'
@@ -235,6 +238,9 @@ function App() {
   const textEditTimer = useRef<number | null>(null)
   const latestCells = useRef(cells)
   const stepHistoryRef = useRef<(direction: 'undo' | 'redo') => void>(() => {})
+  // 예시 보드 선택/덮어쓰기 확인 대화상자 (#7)
+  const sampleDialog = useRef<HTMLDialogElement>(null)
+  const [selectedSample, setSelectedSample] = useState<SampleId>(SAMPLE_IDS[0])
 
   const hasUnsavedChanges =
     backupMeta.dirtySince !== null && boardHasContent(cells)
@@ -295,7 +301,12 @@ function App() {
       const isRedo =
         (key === 'z' && event.shiftKey) ||
         (key === 'y' && event.ctrlKey && !event.metaKey && !event.shiftKey)
-      if ((!isUndo && !isRedo) || isTextEntryTarget(event.target)) {
+      if (
+        (!isUndo && !isRedo) ||
+        isTextEntryTarget(event.target) ||
+        // 대화상자가 열려 있으면 뒤쪽 보드를 바꾸지 않는다.
+        sampleDialog.current?.open
+      ) {
         return
       }
       event.preventDefault()
@@ -448,6 +459,40 @@ function App() {
     setSelectedBlock(4)
     setFocusMode(false)
     setNotice({ message: t.resetSuccess, kind: 'success' })
+  }
+
+  function openSampleDialog() {
+    endTextEditSession()
+    sampleDialog.current?.showModal()
+  }
+
+  function closeSampleDialog() {
+    sampleDialog.current?.close()
+  }
+
+  // 예시 보드를 불러온다. 보드 전체를 바꾸는 다른 작업(초기화, 백업 복원)처럼
+  // 직전 보드를 Undo 히스토리에 기록하므로, 불러온 뒤 실행 취소로 되돌릴 수 있다. (#5, #7)
+  function loadSample() {
+    const sampleCells = loadSampleCells(selectedSample, language)
+    if (sampleCells === null) {
+      return
+    }
+
+    endTextEditSession()
+    if (!cellsEqual(cells, sampleCells)) {
+      recordChange(cells)
+    }
+    // 테마와 언어는 사용자가 쓰던 설정을 그대로 둔다.
+    persistState({ cells: sampleCells, theme, language })
+    // 예시 내용은 아직 백업되지 않았으므로 백업 알림에 반영한다. (#4)
+    markEdited()
+    setSelectedBlock(4)
+    setFocusMode(false)
+    closeSampleDialog()
+    setNotice({
+      message: t.sampleLoaded(getSampleInfo(selectedSample, language).name),
+      kind: 'success',
+    })
   }
 
   function downloadBackup() {
@@ -882,6 +927,15 @@ function App() {
           </label>
           <span className="toolbar-divider" />
           <button
+            aria-label={t.samples}
+            className="icon-button"
+            onClick={openSampleDialog}
+            title={t.samples}
+            type="button"
+          >
+            <LayoutTemplate aria-hidden="true" size={17} />
+          </button>
+          <button
             aria-label={t.reset}
             className="icon-button icon-button--reset"
             onClick={resetBoard}
@@ -961,6 +1015,19 @@ function App() {
           </div>
           <h1>{t.headline} <span>{t.headlineAccent}</span></h1>
           <p>{t.intro}</p>
+          {!boardHasContent(cells) && (
+            <div className="sample-hint">
+              <span>{t.samplesHint}</span>
+              <button
+                className="banner-button banner-button--primary sample-hint__button"
+                onClick={openSampleDialog}
+                type="button"
+              >
+                <LayoutTemplate aria-hidden="true" size={14} />
+                {t.samplesOpen}
+              </button>
+            </div>
+          )}
         </div>
         <div className="progress-card">
           <div className="progress-card__top">
@@ -1069,6 +1136,105 @@ function App() {
           <span><i className="legend-dot legend-dot--action" /> {t.legendAction}</span>
         </div>
       </section>
+
+      <dialog
+        aria-labelledby="sample-dialog-title"
+        className="sample-dialog"
+        onClick={(event) => {
+          // 바깥(배경)을 누르면 닫는다.
+          if (event.target === event.currentTarget) {
+            closeSampleDialog()
+          }
+        }}
+        ref={sampleDialog}
+      >
+        <form
+          className="sample-dialog__body"
+          method="dialog"
+          onSubmit={(event) => {
+            event.preventDefault()
+            loadSample()
+          }}
+        >
+          <div className="sample-dialog__header">
+            <h2 id="sample-dialog-title">{t.sampleDialogTitle}</h2>
+            <button
+              aria-label={t.cancel}
+              className="sample-dialog__close"
+              onClick={closeSampleDialog}
+              title={t.cancel}
+              type="button"
+            >
+              <X aria-hidden="true" size={16} />
+            </button>
+          </div>
+          <p className="sample-dialog__intro">{t.sampleDialogIntro}</p>
+
+          <fieldset className="sample-options">
+            <legend className="visually-hidden">{t.sampleChoiceLabel}</legend>
+            {SAMPLE_IDS.map((id) => {
+              const info = getSampleInfo(id, language)
+              const { completedCount, writtenCount } = getProgress(
+                loadSampleCells(id, language) ?? [],
+              )
+              return (
+                <label
+                  className={`sample-option ${selectedSample === id ? 'is-selected' : ''}`}
+                  key={id}
+                >
+                  <input
+                    checked={selectedSample === id}
+                    name="sample"
+                    onChange={() => setSelectedSample(id)}
+                    type="radio"
+                    value={id}
+                  />
+                  <span className="sample-option__text">
+                    <span className="sample-option__name">{info.name}</span>
+                    <span className="sample-option__description">{info.description}</span>
+                    <span className="sample-option__progress">
+                      {t.sampleProgress(completedCount, writtenCount)}
+                    </span>
+                  </span>
+                </label>
+              )
+            })}
+          </fieldset>
+
+          {boardHasContent(cells) ? (
+            <div className="sample-dialog__warning" role="note">
+              <Info aria-hidden="true" size={15} />
+              <div>
+                <p>{t.sampleOverwrite}</p>
+                {hasUnsavedChanges && (
+                  <p className="sample-dialog__backup">
+                    {t.sampleBackupHint}
+                    <button
+                      className="banner-button"
+                      onClick={downloadBackup}
+                      type="button"
+                    >
+                      <Download aria-hidden="true" size={13} />
+                      {t.sampleBackupFirst}
+                    </button>
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="sample-dialog__note">{t.sampleEmptyBoard}</p>
+          )}
+
+          <div className="sample-dialog__actions">
+            <button className="banner-button" onClick={closeSampleDialog} type="button">
+              {t.cancel}
+            </button>
+            <button className="banner-button banner-button--primary" type="submit">
+              {t.sampleLoad}
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       <footer className="page-footer">
         <span>{t.footerMessage}</span>
