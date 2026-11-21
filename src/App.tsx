@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Coffee,
   Download,
+  Ellipsis,
   Image,
   Focus,
   Info,
@@ -23,6 +24,7 @@ import {
   Undo2,
   Upload,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { toBlob, toPng } from 'html-to-image'
 import {
@@ -110,6 +112,8 @@ function isTextEntryTarget(target: EventTarget | null) {
   }
   return target instanceof HTMLElement && target.isContentEditable
 }
+
+type MoreActionKey = 'png' | 'print' | 'backup' | 'restore' | 'install' | 'samples' | 'reset'
 
 type Notice = {
   message: string
@@ -246,6 +250,10 @@ function App() {
   // 예시 보드 선택/덮어쓰기 확인 대화상자 (#7)
   const sampleDialog = useRef<HTMLDialogElement>(null)
   const [selectedSample, setSelectedSample] = useState<SampleId>(SAMPLE_IDS[0])
+  // 좁은 화면(760px 이하)의 더보기 메뉴
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreMenu = useRef<HTMLDivElement>(null)
+  const moreButton = useRef<HTMLButtonElement>(null)
   // 인쇄 / PDF 저장 대화상자 (#12)
   const printDialog = useRef<HTMLDialogElement>(null)
   const [printMode, setPrintMode] = useState<PrintMode>('current')
@@ -481,6 +489,80 @@ function App() {
 
   function closeSampleDialog() {
     sampleDialog.current?.close()
+  }
+
+  // 더보기 메뉴가 열리면 첫 항목에 포커스를 두고, 바깥을 누르면 닫는다.
+  useEffect(() => {
+    if (!moreOpen) {
+      return
+    }
+    moreMenu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus()
+    function handlePointerDown(event: PointerEvent) {
+      if (!moreMenu.current?.contains(event.target as Node)) {
+        setMoreOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [moreOpen])
+
+  function closeMoreMenu(returnFocus: boolean) {
+    setMoreOpen(false)
+    if (returnFocus) {
+      moreButton.current?.focus()
+    }
+  }
+
+  // 메뉴 키보드 조작: 위/아래 화살표, Home/End로 이동, Esc로 닫기, Tab이면 닫고 다음으로 이동
+  function handleMoreMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'),
+    )
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    let next: number | null = null
+    if (event.key === 'ArrowDown') {
+      next = (current + 1) % items.length
+    } else if (event.key === 'ArrowUp') {
+      next = (current - 1 + items.length) % items.length
+    } else if (event.key === 'Home') {
+      next = 0
+    } else if (event.key === 'End') {
+      next = items.length - 1
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMoreMenu(true)
+      return
+    } else if (event.key === 'Tab') {
+      closeMoreMenu(false)
+      return
+    }
+    if (next !== null) {
+      event.preventDefault()
+      items[next]?.focus()
+    }
+  }
+
+  function runMoreAction(key: MoreActionKey) {
+    closeMoreMenu(false)
+    if (key === 'png') {
+      void downloadBoardPng()
+    } else if (key === 'print') {
+      openPrintDialog()
+    } else if (key === 'backup') {
+      downloadBackup()
+    } else if (key === 'restore') {
+      openRestorePicker()
+    } else if (key === 'install') {
+      void pwa.installApp()
+    } else if (key === 'samples') {
+      openSampleDialog()
+    } else {
+      resetBoard()
+    }
+  }
+
+  function openRestorePicker() {
+    importInput.current?.click()
   }
 
   function openPrintDialog() {
@@ -876,6 +958,23 @@ function App() {
     )
   }
 
+  // 더보기 메뉴 항목. 순서는 상단 버튼(toolbar-secondary)과 같고, 동작은 runMoreAction에서 처리한다.
+  const moreActions: {
+    key: MoreActionKey
+    label: string
+    Icon: LucideIcon
+    disabled?: boolean
+    dot?: boolean
+  }[] = [
+    { key: 'png', label: t.pngDownload, Icon: Image, disabled: isExportingPng },
+    { key: 'print', label: t.printButton, Icon: Printer },
+    { key: 'backup', label: t.backupDownload, Icon: Download, dot: hasUnsavedChanges },
+    { key: 'restore', label: t.backupRestore, Icon: Upload },
+    ...(pwa.canInstall ? [{ key: 'install' as const, label: t.installApp, Icon: MonitorDown }] : []),
+    { key: 'samples', label: t.samples, Icon: LayoutTemplate },
+    { key: 'reset', label: t.reset, Icon: RotateCcw },
+  ]
+
   return (
     <main className="app-shell min-h-screen">
       <header className="topbar">
@@ -926,7 +1025,7 @@ function App() {
           <span className="toolbar-divider" />
           <button
             aria-label={t.pngDownload}
-            className="icon-button"
+            className="icon-button toolbar-secondary"
             disabled={isExportingPng}
             onClick={downloadBoardPng}
             title={t.pngDownload}
@@ -936,7 +1035,7 @@ function App() {
           </button>
           <button
             aria-label={t.printButton}
-            className="icon-button"
+            className="icon-button toolbar-secondary"
             onClick={openPrintDialog}
             title={t.printButton}
             type="button"
@@ -945,7 +1044,7 @@ function App() {
           </button>
           <button
             aria-label={backupLabel}
-            className="icon-button icon-button--backup"
+            className="icon-button icon-button--backup toolbar-secondary"
             onClick={downloadBackup}
             title={backupLabel}
             type="button"
@@ -957,8 +1056,8 @@ function App() {
           </button>
           <button
             aria-label={t.backupRestore}
-            className="icon-button"
-            onClick={() => importInput.current?.click()}
+            className="icon-button toolbar-secondary"
+            onClick={openRestorePicker}
             title={t.backupRestore}
             type="button"
           >
@@ -1016,7 +1115,7 @@ function App() {
           {pwa.canInstall && (
             <button
               aria-label={t.installApp}
-              className="icon-button"
+              className="icon-button toolbar-secondary"
               onClick={() => void pwa.installApp()}
               title={t.installApp}
               type="button"
@@ -1027,7 +1126,7 @@ function App() {
           <span className="toolbar-divider" />
           <button
             aria-label={t.samples}
-            className="icon-button"
+            className="icon-button toolbar-secondary"
             onClick={openSampleDialog}
             title={t.samples}
             type="button"
@@ -1036,13 +1135,55 @@ function App() {
           </button>
           <button
             aria-label={t.reset}
-            className="icon-button icon-button--reset"
+            className="icon-button icon-button--reset toolbar-secondary"
             onClick={resetBoard}
             title={t.reset}
             type="button"
           >
             <RotateCcw aria-hidden="true" size={17} />
           </button>
+          {/* 좁은 화면(760px 이하)에서만 보이는 더보기 메뉴. 위의 toolbar-secondary 버튼을 모은다. */}
+          <div className="toolbar-more" ref={moreMenu}>
+            <button
+              aria-controls="toolbar-more-menu"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              aria-label={hasUnsavedChanges ? `${t.moreActions} · ${t.unsavedChanges}` : t.moreActions}
+              className="icon-button icon-button--backup"
+              onClick={() => setMoreOpen((open) => !open)}
+              ref={moreButton}
+              title={t.moreActions}
+              type="button"
+            >
+              <Ellipsis aria-hidden="true" size={17} />
+              {hasUnsavedChanges && <span aria-hidden="true" className="unsaved-dot" />}
+            </button>
+            {moreOpen && (
+              <div
+                aria-label={t.moreActions}
+                className="toolbar-more__menu"
+                id="toolbar-more-menu"
+                onKeyDown={handleMoreMenuKeyDown}
+                role="menu"
+              >
+                {moreActions.map(({ key, label, Icon, disabled, dot }) => (
+                  <button
+                    className="toolbar-more__item"
+                    disabled={disabled}
+                    key={key}
+                    onClick={() => runMoreAction(key)}
+                    role="menuitem"
+                    tabIndex={-1}
+                    type="button"
+                  >
+                    <Icon aria-hidden="true" size={17} />
+                    <span>{label}</span>
+                    {dot && <span aria-hidden="true" className="toolbar-more__dot" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
