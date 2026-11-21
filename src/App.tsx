@@ -14,6 +14,7 @@ import {
   Link2,
   MonitorDown,
   Moon,
+  Printer,
   Redo2,
   RefreshCw,
   RotateCcw,
@@ -55,6 +56,7 @@ import {
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import { SAMPLE_IDS, getSampleInfo, loadSampleCells, type SampleId } from './samples'
 import { usePwa } from './pwa'
+import { buildPrintBlocks, getPrintTextSize, type PrintMode } from './print'
 import './App.css'
 
 const STORAGE_KEY = 'ninegrid-board-v1'
@@ -244,6 +246,9 @@ function App() {
   // 예시 보드 선택/덮어쓰기 확인 대화상자 (#7)
   const sampleDialog = useRef<HTMLDialogElement>(null)
   const [selectedSample, setSelectedSample] = useState<SampleId>(SAMPLE_IDS[0])
+  // 인쇄 / PDF 저장 대화상자 (#12)
+  const printDialog = useRef<HTMLDialogElement>(null)
+  const [printMode, setPrintMode] = useState<PrintMode>('current')
   // 홈 화면 설치와 새 버전 안내 (#6)
   const pwa = usePwa({
     onOfflineReady: () => setNotice({ message: t.offlineReady, kind: 'success' }),
@@ -312,7 +317,8 @@ function App() {
         (!isUndo && !isRedo) ||
         isTextEntryTarget(event.target) ||
         // 대화상자가 열려 있으면 뒤쪽 보드를 바꾸지 않는다.
-        sampleDialog.current?.open
+        sampleDialog.current?.open ||
+        printDialog.current?.open
       ) {
         return
       }
@@ -475,6 +481,22 @@ function App() {
 
   function closeSampleDialog() {
     sampleDialog.current?.close()
+  }
+
+  function openPrintDialog() {
+    endTextEditSession()
+    printDialog.current?.showModal()
+  }
+
+  function closePrintDialog() {
+    printDialog.current?.close()
+  }
+
+  // 인쇄 전용 보드(.print-sheet)는 항상 그려져 있고 화면에서만 숨겨져 있다.
+  // 대화상자가 닫힌 뒤 인쇄 창을 열어야 인쇄물에 대화상자가 찍히지 않는다.
+  function printBoard() {
+    closePrintDialog()
+    window.requestAnimationFrame(() => window.print())
   }
 
   // 예시 보드를 불러온다. 보드 전체를 바꾸는 다른 작업(초기화, 백업 복원)처럼
@@ -761,6 +783,56 @@ function App() {
     )
   }
 
+  // 인쇄 전용 보드. 화면에서는 숨기고 @media print에서만 보인다. (#12)
+  function renderPrintSheet() {
+    const isBlank = printMode === 'blank'
+    const goal = isBlank ? '' : cells[CENTER_CELL].text.trim()
+    const printedOn = new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : language, {
+      dateStyle: 'long',
+    }).format(new Date(now))
+
+    return (
+      <div aria-hidden="true" className={`print-sheet ${isBlank ? 'print-sheet--blank' : ''}`}>
+        <header className="print-sheet__header">
+          <div className="print-sheet__goal">
+            <span className="print-sheet__label">{t.centerGoal}</span>
+            <span className={`print-sheet__goal-text print-sheet__goal-text--${getPrintTextSize(goal)}`}>
+              {goal}
+            </span>
+          </div>
+          <div className="print-sheet__meta">
+            {!isBlank && (
+              <span>
+                {t.progressLabel} {progress}% · {t.completedCount(completedCount, writtenCount)}
+              </span>
+            )}
+            <span>{isBlank ? t.printDateBlank : t.printDate(printedOn)}</span>
+          </div>
+        </header>
+        <div className="print-board">
+          {buildPrintBlocks(cells, printMode).map((block, blockIndex) => (
+            <div className="print-block" key={blockIndex}>
+              {block.map((cell) => (
+                <div
+                  className={`print-cell print-cell--${cell.kind} print-cell--${cell.textSize}`}
+                  key={cell.index}
+                >
+                  {cell.check && (
+                    <span className="print-cell__check">
+                      {cell.check === 'done' ? '☑' : '☐'}
+                    </span>
+                  )}
+                  <span className="print-cell__text">{cell.text}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <footer className="print-sheet__footer">{t.footerBrand}</footer>
+      </div>
+    )
+  }
+
   function renderBlock(blockIndex: number) {
     const rowStart = Math.floor(blockIndex / 3) * 3
     const columnStart = (blockIndex % 3) * 3
@@ -861,6 +933,15 @@ function App() {
             type="button"
           >
             <Image aria-hidden="true" size={17} />
+          </button>
+          <button
+            aria-label={t.printButton}
+            className="icon-button"
+            onClick={openPrintDialog}
+            title={t.printButton}
+            type="button"
+          >
+            <Printer aria-hidden="true" size={17} />
           </button>
           <button
             aria-label={backupLabel}
@@ -1276,6 +1357,81 @@ function App() {
           </div>
         </form>
       </dialog>
+
+      <dialog
+        aria-labelledby="print-dialog-title"
+        className="sample-dialog"
+        onClick={(event) => {
+          // 바깥(배경)을 누르면 닫는다.
+          if (event.target === event.currentTarget) {
+            closePrintDialog()
+          }
+        }}
+        ref={printDialog}
+      >
+        <form
+          className="sample-dialog__body"
+          method="dialog"
+          onSubmit={(event) => {
+            event.preventDefault()
+            printBoard()
+          }}
+        >
+          <div className="sample-dialog__header">
+            <h2 id="print-dialog-title">{t.printButton}</h2>
+            <button
+              aria-label={t.cancel}
+              className="sample-dialog__close"
+              onClick={closePrintDialog}
+              title={t.cancel}
+              type="button"
+            >
+              <X aria-hidden="true" size={16} />
+            </button>
+          </div>
+          <p className="sample-dialog__intro">{t.printDialogIntro}</p>
+
+          <fieldset className="sample-options">
+            <legend className="visually-hidden">{t.printChoiceLabel}</legend>
+            {(
+              [
+                ['current', t.printCurrent, t.printCurrentDescription],
+                ['blank', t.printBlank, t.printBlankDescription],
+              ] as const
+            ).map(([mode, name, description]) => (
+              <label
+                className={`sample-option ${printMode === mode ? 'is-selected' : ''}`}
+                key={mode}
+              >
+                <input
+                  checked={printMode === mode}
+                  name="print-mode"
+                  onChange={() => setPrintMode(mode)}
+                  type="radio"
+                  value={mode}
+                />
+                <span className="sample-option__text">
+                  <span className="sample-option__name">{name}</span>
+                  <span className="sample-option__description">{description}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          <p className="sample-dialog__note">{t.printDeviceHint}</p>
+
+          <div className="sample-dialog__actions">
+            <button className="banner-button" onClick={closePrintDialog} type="button">
+              {t.cancel}
+            </button>
+            <button className="banner-button banner-button--primary" type="submit">
+              {t.printConfirm}
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      {renderPrintSheet()}
 
       <footer className="page-footer">
         <span>{t.footerMessage}</span>
