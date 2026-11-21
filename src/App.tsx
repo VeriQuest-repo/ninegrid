@@ -12,8 +12,10 @@ import {
   Grid2X2,
   LayoutTemplate,
   Link2,
+  MonitorDown,
   Moon,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Sun,
   Target,
@@ -52,6 +54,7 @@ import {
 } from './history'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import { SAMPLE_IDS, getSampleInfo, loadSampleCells, type SampleId } from './samples'
+import { usePwa } from './pwa'
 import './App.css'
 
 const STORAGE_KEY = 'ninegrid-board-v1'
@@ -241,6 +244,10 @@ function App() {
   // 예시 보드 선택/덮어쓰기 확인 대화상자 (#7)
   const sampleDialog = useRef<HTMLDialogElement>(null)
   const [selectedSample, setSelectedSample] = useState<SampleId>(SAMPLE_IDS[0])
+  // 홈 화면 설치와 새 버전 안내 (#6)
+  const pwa = usePwa({
+    onOfflineReady: () => setNotice({ message: t.offlineReady, kind: 'success' }),
+  })
 
   const hasUnsavedChanges =
     backupMeta.dirtySince !== null && boardHasContent(cells)
@@ -925,6 +932,17 @@ function App() {
             </select>
             <ChevronDown aria-hidden="true" size={12} />
           </label>
+          {pwa.canInstall && (
+            <button
+              aria-label={t.installApp}
+              className="icon-button"
+              onClick={() => void pwa.installApp()}
+              title={t.installApp}
+              type="button"
+            >
+              <MonitorDown aria-hidden="true" size={17} />
+            </button>
+          )}
           <span className="toolbar-divider" />
           <button
             aria-label={t.samples}
@@ -946,6 +964,29 @@ function App() {
           </button>
         </div>
       </header>
+
+      {pwa.needRefresh && (
+        <section
+          aria-label={t.updateLabel}
+          className="backup-banner backup-banner--info"
+          role="status"
+        >
+          <RefreshCw aria-hidden="true" className="backup-banner__icon" size={16} />
+          <p className="backup-banner__message">{t.updateAvailable}</p>
+          <div className="backup-banner__actions">
+            <button
+              className="banner-button banner-button--primary"
+              onClick={() => void pwa.applyUpdate()}
+              type="button"
+            >
+              {t.updateNow}
+            </button>
+            <button className="banner-button" onClick={pwa.dismissUpdate} type="button">
+              {t.remindLater}
+            </button>
+          </div>
+        </section>
+      )}
 
       {showStorageNotice ? (
         <section
