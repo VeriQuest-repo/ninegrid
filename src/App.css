@@ -1502,6 +1502,97 @@ button {
   }
 }
 
+/* 좁은 화면 더보기 메뉴
+   760px 이하(휴대폰, 휴대폰 가로, 작은 태블릿)에서는 자주 쓰지 않는 버튼(toolbar-secondary)을
+   더보기 메뉴로 옮겨, 인쇄·앱 설치 버튼이 더해져도 상단이 넘치지 않게 한다.
+   768px 이상(태블릿 세로, PC)은 모든 버튼을 그대로 보여준다. */
+.toolbar-more {
+  position: relative;
+  display: none;
+}
+
+.toolbar-more__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--dialog-shadow);
+}
+
+.toolbar-more__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 14px;
+  text-align: left;
+}
+
+.toolbar-more__item > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.toolbar-more__item:hover,
+.toolbar-more__item:focus-visible {
+  background: var(--accent-soft);
+}
+
+.toolbar-more__item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 백업하지 않은 변경이 있으면 메뉴의 백업 항목에도 점을 표시한다. */
+.toolbar-more__dot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--goal-ink);
+}
+
+@media (max-width: 760px) {
+  .toolbar-secondary {
+    display: none;
+  }
+
+  .toolbar-more {
+    display: block;
+  }
+}
+
+/* 휴대폰 세로 화면은 남은 버튼을 누르기 쉽게 키운다. */
+@media (max-width: 480px) {
+  .topbar__actions {
+    gap: 4px;
+  }
+
+  .toolbar-button,
+  .icon-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .language-picker select {
+    width: 46px;
+    height: 34px;
+  }
+}
+
 @media (max-height: 700px) and (min-width: 641px) {
   .topbar {
     height: 58px;

@@ -89,6 +89,7 @@ export type Translation = {
   printConfirm: string
   printDate: (date: string) => string
   printDateBlank: string
+  moreActions: string
   restoreSuccess: string
   invalidBackup: string
   restoreError: string
@@ -215,6 +216,7 @@ export const translations: Record<Language, Translation> = {
     printConfirm: '인쇄하기',
     printDate: (date) => `인쇄일 ${date}`,
     printDateBlank: '날짜: ____________',
+    moreActions: '더보기',
     restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
@@ -339,6 +341,7 @@ export const translations: Record<Language, Translation> = {
     printConfirm: 'Print',
     printDate: (date) => `Printed on ${date}`,
     printDateBlank: 'Date: ____________',
+    moreActions: 'More',
     restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
@@ -460,6 +463,7 @@ export const translations: Record<Language, Translation> = {
     printConfirm: '印刷する',
     printDate: (date) => `印刷日 ${date}`,
     printDateBlank: '日付: ____________',
+    moreActions: 'その他',
     restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
@@ -580,6 +584,7 @@ export const translations: Record<Language, Translation> = {
     printConfirm: '打印',
     printDate: (date) => `打印日期 ${date}`,
     printDateBlank: '日期：____________',
+    moreActions: '更多',
     restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',
