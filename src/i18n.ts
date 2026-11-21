@@ -78,6 +78,17 @@ export type Translation = {
   updateAvailable: string
   updateNow: string
   offlineReady: string
+  printButton: string
+  printDialogIntro: string
+  printChoiceLabel: string
+  printCurrent: string
+  printCurrentDescription: string
+  printBlank: string
+  printBlankDescription: string
+  printDeviceHint: string
+  printConfirm: string
+  printDate: (date: string) => string
+  printDateBlank: string
   restoreSuccess: string
   invalidBackup: string
   restoreError: string
@@ -192,6 +203,18 @@ export const translations: Record<Language, Translation> = {
       '새 버전이 있습니다. 새로고침하면 적용되며, 보드 내용은 그대로 남습니다.',
     updateNow: '새로고침',
     offlineReady: '이제 인터넷 연결 없이도 NineGrid를 열 수 있습니다.',
+    printButton: '인쇄 / PDF 저장',
+    printDialogIntro:
+      'A4 가로 한 장에 전체 보드를 인쇄해요. 인쇄 창에서 대상을 ‘PDF로 저장’으로 고르면 PDF 파일로 저장할 수 있어요.',
+    printChoiceLabel: '인쇄할 내용',
+    printCurrent: '현재 보드',
+    printCurrentDescription: '작성한 내용과 완료 체크를 함께 인쇄해요. 포커스 모드에서도 전체 보드가 인쇄돼요.',
+    printBlank: '빈 양식',
+    printBlankDescription: '칸만 인쇄해서 손으로 채워 쓸 수 있어요.',
+    printDeviceHint: '인쇄가 지원되지 않는 기기에서는 이미지 저장을 이용해 주세요.',
+    printConfirm: '인쇄하기',
+    printDate: (date) => `인쇄일 ${date}`,
+    printDateBlank: '날짜: ____________',
     restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
@@ -303,6 +326,19 @@ export const translations: Record<Language, Translation> = {
       'A new version is available. Reload to apply it. Your board will stay as it is.',
     updateNow: 'Reload',
     offlineReady: 'NineGrid now works offline.',
+    printButton: 'Print / Save as PDF',
+    printDialogIntro:
+      'Prints the whole board on one landscape A4 page. To get a PDF, choose “Save as PDF” as the destination in the print window.',
+    printChoiceLabel: 'What to print',
+    printCurrent: 'Current board',
+    printCurrentDescription:
+      'Prints your text and completed checks. The whole board is printed even in focus mode.',
+    printBlank: 'Blank template',
+    printBlankDescription: 'Prints empty cells so you can fill them in by hand.',
+    printDeviceHint: "If your device can't print, use image download instead.",
+    printConfirm: 'Print',
+    printDate: (date) => `Printed on ${date}`,
+    printDateBlank: 'Date: ____________',
     restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
@@ -413,6 +449,17 @@ export const translations: Record<Language, Translation> = {
       '新しいバージョンがあります。再読み込みすると適用され、ボードの内容はそのまま残ります。',
     updateNow: '再読み込み',
     offlineReady: 'インターネットに接続していなくてもNineGridを開けるようになりました。',
+    printButton: '印刷 / PDF保存',
+    printDialogIntro: 'A4横向き1枚にボード全体を印刷します。印刷画面で送信先を「PDFに保存」にするとPDFファイルとして保存できます。',
+    printChoiceLabel: '印刷する内容',
+    printCurrent: '現在のボード',
+    printCurrentDescription: '入力した内容と完了チェックを一緒に印刷します。フォーカスモードでもボード全体が印刷されます。',
+    printBlank: '空のテンプレート',
+    printBlankDescription: 'マスだけを印刷して、手書きで埋められます。',
+    printDeviceHint: '印刷に対応していない端末では、画像保存をご利用ください。',
+    printConfirm: '印刷する',
+    printDate: (date) => `印刷日 ${date}`,
+    printDateBlank: '日付: ____________',
     restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
@@ -522,6 +569,17 @@ export const translations: Record<Language, Translation> = {
       '有新版本可用。重新加载后即可应用，看板内容会保持不变。',
     updateNow: '重新加载',
     offlineReady: '现在无需联网也能打开 NineGrid。',
+    printButton: '打印 / 保存为 PDF',
+    printDialogIntro: '在一张横向 A4 纸上打印整个看板。在打印窗口中将目标选为“另存为 PDF”即可保存为 PDF 文件。',
+    printChoiceLabel: '打印内容',
+    printCurrent: '当前看板',
+    printCurrentDescription: '同时打印填写的内容和完成勾选。即使在专注模式下也会打印整个看板。',
+    printBlank: '空白模板',
+    printBlankDescription: '只打印格子，可以手写填写。',
+    printDeviceHint: '如果设备不支持打印，请使用保存图片。',
+    printConfirm: '打印',
+    printDate: (date) => `打印日期 ${date}`,
+    printDateBlank: '日期：____________',
     restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',

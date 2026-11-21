@@ -17,6 +17,12 @@
   --shadow: 0 14px 40px rgb(34 54 44 / 7%);
   --backdrop: rgb(23 29 27 / 38%);
   --dialog-shadow: 0 24px 60px rgb(34 54 44 / 22%);
+  /* 인쇄 전용 색 (#12). 테마와 상관없이 흰 종이에 검은 글자로 인쇄한다. */
+  --print-paper: #ffffff;
+  --print-ink: #111111;
+  --print-muted: #555555;
+  --print-line: #9a9a9a;
+  --print-line-strong: #111111;
 }
 
 :root[data-theme="dark"] {
@@ -39,6 +45,12 @@
   --shadow: 0 14px 40px rgb(0 0 0 / 18%);
   --backdrop: rgb(0 0 0 / 55%);
   --dialog-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+  /* 인쇄는 다크 테마에서도 밝게 나온다. 라이트와 같은 값을 쓴다. (#12) */
+  --print-paper: #ffffff;
+  --print-ink: #111111;
+  --print-muted: #555555;
+  --print-line: #9a9a9a;
+  --print-line-strong: #111111;
 }
 
 body {
@@ -1512,5 +1524,182 @@ button {
 
   .page-footer {
     min-height: 22px;
+  }
+}
+
+/* 인쇄 / PDF 저장 (#12)
+   화면의 입력창은 인쇄에서 글이 잘리므로, 인쇄 전용 보드(.print-sheet)를 따로 그린다.
+   배경색은 인쇄에서 빠질 수 있어 블록 구분은 테두리 굵기로 한다. */
+.print-sheet {
+  display: none;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: light;
+  }
+
+  body {
+    color: var(--print-ink);
+    background: var(--print-paper);
+    transition: none;
+  }
+
+  .app-shell {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .app-shell > :not(.print-sheet) {
+    display: none !important;
+  }
+
+  .print-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5mm;
+    /* A4 가로 높이 210mm - 위아래 여백 16mm */
+    height: 193mm;
+    color: var(--print-ink);
+    break-inside: avoid;
+  }
+
+  .print-sheet__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 0.4mm solid var(--print-line-strong);
+  }
+
+  .print-sheet__goal {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 3mm;
+    min-width: 0;
+  }
+
+  .print-sheet__label,
+  .print-sheet__meta,
+  .print-sheet__footer {
+    color: var(--print-muted);
+    font-size: 7.5pt;
+  }
+
+  .print-sheet__label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .print-sheet__goal-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 5.5mm;
+    font-size: 12pt;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .print-sheet__goal-text--small {
+    font-size: 10pt;
+  }
+
+  .print-sheet__goal-text--tiny {
+    font-size: 9pt;
+  }
+
+  /* 빈 양식은 중심 목표를 손으로 적을 밑줄을 그린다. */
+  .print-sheet--blank .print-sheet__goal-text {
+    border-bottom: 0.3mm solid var(--print-line);
+  }
+
+  .print-sheet__meta {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4mm;
+    white-space: nowrap;
+  }
+
+  .print-board {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 1.8mm;
+    min-height: 0;
+  }
+
+  .print-block {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    min-height: 0;
+    border: 0.6mm solid var(--print-line-strong);
+  }
+
+  .print-cell {
+    display: flex;
+    gap: 0.8mm;
+    align-items: flex-start;
+    min-width: 0;
+    min-height: 0;
+    padding: 1mm 1.2mm;
+    overflow: hidden;
+    border: 0.15mm solid var(--print-line);
+    font-size: 7.5pt;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .print-cell--small {
+    font-size: 6.5pt;
+  }
+
+  .print-cell--tiny {
+    font-size: 5.6pt;
+  }
+
+  /* 중심 목표, 중앙 블록의 세부 목표, 바깥 블록 제목은 가운데 정렬 + 굵게 */
+  .print-cell--hub,
+  .print-cell--subgoal,
+  .print-cell--title {
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  /* 중심 목표는 굵은 테두리로 강조하고, 짧을 때만 조금 크게 쓴다. */
+  .print-cell--hub {
+    border: 0.5mm solid var(--print-line-strong);
+  }
+
+  .print-cell--hub.print-cell--normal {
+    font-size: 8.5pt;
+  }
+
+  .print-cell__check {
+    flex: 0 0 auto;
+    font-size: 8.5pt;
+    line-height: 1.1;
+  }
+
+  .print-cell__text {
+    min-width: 0;
+  }
+
+  .print-sheet__footer {
+    text-align: right;
+    letter-spacing: 0.08em;
   }
 }
