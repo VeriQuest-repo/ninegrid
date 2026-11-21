@@ -73,6 +73,11 @@ export type Translation = {
   backupNow: string
   remindLater: string
   dontShowAgain: string
+  installApp: string
+  updateLabel: string
+  updateAvailable: string
+  updateNow: string
+  offlineReady: string
   restoreSuccess: string
   invalidBackup: string
   restoreError: string
@@ -181,6 +186,12 @@ export const translations: Record<Language, Translation> = {
     backupNow: '지금 백업',
     remindLater: '나중에',
     dontShowAgain: '다시 보지 않기',
+    installApp: '앱으로 설치',
+    updateLabel: '업데이트 알림',
+    updateAvailable:
+      '새 버전이 있습니다. 새로고침하면 적용되며, 보드 내용은 그대로 남습니다.',
+    updateNow: '새로고침',
+    offlineReady: '이제 인터넷 연결 없이도 NineGrid를 열 수 있습니다.',
     restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
@@ -286,6 +297,12 @@ export const translations: Record<Language, Translation> = {
     backupNow: 'Back up now',
     remindLater: 'Later',
     dontShowAgain: "Don't show again",
+    installApp: 'Install app',
+    updateLabel: 'Update notice',
+    updateAvailable:
+      'A new version is available. Reload to apply it. Your board will stay as it is.',
+    updateNow: 'Reload',
+    offlineReady: 'NineGrid now works offline.',
     restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
@@ -390,6 +407,12 @@ export const translations: Record<Language, Translation> = {
     backupNow: '今すぐバックアップ',
     remindLater: 'あとで',
     dontShowAgain: '今後表示しない',
+    installApp: 'アプリとしてインストール',
+    updateLabel: 'アップデートのお知らせ',
+    updateAvailable:
+      '新しいバージョンがあります。再読み込みすると適用され、ボードの内容はそのまま残ります。',
+    updateNow: '再読み込み',
+    offlineReady: 'インターネットに接続していなくてもNineGridを開けるようになりました。',
     restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
@@ -493,6 +516,12 @@ export const translations: Record<Language, Translation> = {
     backupNow: '立即备份',
     remindLater: '稍后',
     dontShowAgain: '不再显示',
+    installApp: '安装为应用',
+    updateLabel: '更新提示',
+    updateAvailable:
+      '有新版本可用。重新加载后即可应用，看板内容会保持不变。',
+    updateNow: '重新加载',
+    offlineReady: '现在无需联网也能打开 NineGrid。',
     restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',
