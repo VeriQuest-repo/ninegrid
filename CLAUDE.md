@@ -4,13 +4,17 @@
 
 - 배포: https://ninegrid.veriquest.workers.dev/
 - 저장소: https://github.com/VeriQuest-repo/ninegrid
-- 스택: React + TypeScript (Vite), lucide-react, html-to-image (PNG 저장)
+- 스택: React 19 + TypeScript (Vite), Tailwind CSS 4, lucide-react, html-to-image (PNG 저장), vite-plugin-pwa (앱 설치·오프라인), Vitest (단위 테스트), oxlint (린트)
+- CI: GitHub Actions가 main 푸시와 PR마다 lint → test → build를 실행한다 (`.github/workflows/ci.yml`)
 
 ## 명령어
 
 - `npm run dev` — 개발 서버 실행
 - `npm run build` — 빌드
 - `npm run lint` — 린트 (코드 수정 후 반드시 실행해 검증)
+- `npm run test` — 단위 테스트 (Vitest). 보드 규칙·인쇄 데이터 등 로직을 바꾸면 실행해 검증
+- `npm run preview` — 빌드 결과 미리보기
+- `npm run generate-pwa-assets` — `public/favicon.svg`로 PWA 아이콘 다시 만들기 (아이콘을 바꿨을 때)
 
 작업 환경은 Windows 또는 macOS다. 터미널 명령어는 현재 세션의 OS에 맞춰 작성한다 (Windows는 PowerShell, macOS는 zsh). OS를 알 수 없으면 양쪽 명령어를 함께 적는다.
 
@@ -136,6 +140,7 @@
   - 수정 전후 비교가 필요하면 이전 커밋을 따로 빌드해 캡처하고, 저장소에는 파일을 만들지 않는다.
   - 노션 초안 페이지에는 이미지를 넣지 않는다.
   - 만들 수 없는 이미지(실기기 화면, 인쇄한 종이 사진 등)는 `[직접 캡처 필요]`로 표시한다.
+- SNS 글은 요청할 때만 쓴다. 같은 노션 페이지 맨 아래에 구분선을 넣고 인스타그램 캡션만 쓴다. 쓰레드 글은 따로 쓰지 않는다(인스타그램에서 같이 공유).
 
 ## 답변 스타일
 
