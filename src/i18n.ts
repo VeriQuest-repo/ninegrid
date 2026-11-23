@@ -72,7 +72,20 @@ export type Translation = {
   doneState: string
   notDoneState: string
   markDone: (cell: string) => string
-  keyboardHint: (checkShortcut: string) => string
+  keyboardHint: (checkShortcut: string, moveShortcut: string) => string
+  moveHandle: (cell: string) => string
+  moveTitle: string
+  moveSource: (cell: string, text: string) => string
+  moveBlockLabel: string
+  moveTargetLabel: string
+  moveEmpty: string
+  moveCurrent: string
+  moveNote: string
+  moveConfirm: string
+  cellMoved: (cell: string) => string
+  cellSwapped: (cell: string) => string
+  dropMove: string
+  dropSwap: string
   legendCenter: string
   legendLinked: string
   legendAction: string
@@ -244,8 +257,21 @@ export const translations: Record<Language, Translation> = {
     doneState: '완료',
     notDoneState: '미완료',
     markDone: (cell) => `${cell} 완료 표시`,
-    keyboardHint: (checkShortcut) =>
-      `키보드: 방향키로 칸 이동 · Tab으로 다음 블록 · ${checkShortcut}로 실천 완료 체크`,
+    keyboardHint: (checkShortcut, moveShortcut) =>
+      `키보드: 방향키로 칸 이동 · Tab으로 다음 블록 · ${checkShortcut}로 실천 완료 체크 · ${moveShortcut}로 실천 칸 옮기기`,
+    moveHandle: (cell) => `${cell} 옮기기`,
+    moveTitle: '다른 칸으로 이동',
+    moveSource: (cell, text) => `옮길 칸: ${cell} · ${text}`,
+    moveBlockLabel: '옮길 블록',
+    moveTargetLabel: '옮길 자리',
+    moveEmpty: '빈 칸',
+    moveCurrent: '지금 칸',
+    moveNote: '내용이 있는 칸을 고르면 두 칸의 자리가 서로 바뀌어요. 실행 취소로 되돌릴 수 있어요.',
+    moveConfirm: '옮기기',
+    cellMoved: (cell) => `${cell} 자리로 옮겼어요. 실행 취소로 되돌릴 수 있어요.`,
+    cellSwapped: (cell) => `${cell} 칸과 자리를 바꿨어요. 실행 취소로 되돌릴 수 있어요.`,
+    dropMove: '여기로 이동',
+    dropSwap: '자리 바꾸기',
     legendCenter: '중심 목표',
     legendLinked: '자동 연동 영역',
     legendAction: '클릭해 실천 완료',
@@ -425,8 +451,21 @@ export const translations: Record<Language, Translation> = {
     doneState: 'done',
     notDoneState: 'not done',
     markDone: (cell) => `Mark ${cell} as done`,
-    keyboardHint: (checkShortcut) =>
-      `Keyboard: arrow keys move between cells · Tab goes to the next block · ${checkShortcut} checks off an action`,
+    keyboardHint: (checkShortcut, moveShortcut) =>
+      `Keyboard: arrow keys move between cells · Tab goes to the next block · ${checkShortcut} checks off an action · ${moveShortcut} moves an action`,
+    moveHandle: (cell) => `Move ${cell}`,
+    moveTitle: 'Move to another cell',
+    moveSource: (cell, text) => `Moving: ${cell} · ${text}`,
+    moveBlockLabel: 'Block',
+    moveTargetLabel: 'New position',
+    moveEmpty: 'Empty',
+    moveCurrent: 'Current cell',
+    moveNote: 'If you pick a cell that already has an action, the two cells swap places. You can undo this.',
+    moveConfirm: 'Move',
+    cellMoved: (cell) => `Moved to ${cell}. You can undo this.`,
+    cellSwapped: (cell) => `Swapped places with ${cell}. You can undo this.`,
+    dropMove: 'Move here',
+    dropSwap: 'Swap',
     legendCenter: 'Central goal',
     legendLinked: 'Linked areas',
     legendAction: 'Click to complete an action',
@@ -604,8 +643,21 @@ export const translations: Record<Language, Translation> = {
     doneState: '完了',
     notDoneState: '未完了',
     markDone: (cell) => `${cell}を完了にする`,
-    keyboardHint: (checkShortcut) =>
-      `キーボード: 矢印キーでマスを移動 · Tabで次のブロック · ${checkShortcut}で行動を完了`,
+    keyboardHint: (checkShortcut, moveShortcut) =>
+      `キーボード: 矢印キーでマスを移動 · Tabで次のブロック · ${checkShortcut}で行動を完了 · ${moveShortcut}で行動マスを移動`,
+    moveHandle: (cell) => `${cell}を移動`,
+    moveTitle: '別のマスへ移動',
+    moveSource: (cell, text) => `移動するマス: ${cell} · ${text}`,
+    moveBlockLabel: '移動先のブロック',
+    moveTargetLabel: '移動先の位置',
+    moveEmpty: '空のマス',
+    moveCurrent: '今のマス',
+    moveNote: '内容があるマスを選ぶと、2つのマスの位置が入れ替わります。元に戻すで取り消せます。',
+    moveConfirm: '移動',
+    cellMoved: (cell) => `${cell}へ移動しました。元に戻すで取り消せます。`,
+    cellSwapped: (cell) => `${cell}と位置を入れ替えました。元に戻すで取り消せます。`,
+    dropMove: 'ここへ移動',
+    dropSwap: '入れ替え',
     legendCenter: '中心目標',
     legendLinked: '自動連動する分野',
     legendAction: 'クリックして完了',
@@ -781,8 +833,21 @@ export const translations: Record<Language, Translation> = {
     doneState: '已完成',
     notDoneState: '未完成',
     markDone: (cell) => `将${cell}标记为已完成`,
-    keyboardHint: (checkShortcut) =>
-      `键盘：方向键在格子间移动 · Tab 切换到下一个区块 · ${checkShortcut} 标记行动完成`,
+    keyboardHint: (checkShortcut, moveShortcut) =>
+      `键盘：方向键在格子间移动 · Tab 切换到下一个区块 · ${checkShortcut} 标记行动完成 · ${moveShortcut} 移动行动格`,
+    moveHandle: (cell) => `移动${cell}`,
+    moveTitle: '移动到其他格子',
+    moveSource: (cell, text) => `要移动的格子：${cell} · ${text}`,
+    moveBlockLabel: '目标区块',
+    moveTargetLabel: '目标位置',
+    moveEmpty: '空格',
+    moveCurrent: '当前格子',
+    moveNote: '如果选择已有内容的格子，两个格子会互换位置。可以撤销。',
+    moveConfirm: '移动',
+    cellMoved: (cell) => `已移动到${cell}。可以撤销。`,
+    cellSwapped: (cell) => `已与${cell}互换位置。可以撤销。`,
+    dropMove: '移到这里',
+    dropSwap: '互换',
     legendCenter: '中心目标',
     legendLinked: '自动关联领域',
     legendAction: '点击标记完成',

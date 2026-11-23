@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   Focus,
   Info,
   Grid2X2,
+  GripVertical,
   Copy,
   Layers,
   Plus,
@@ -42,6 +43,7 @@ import {
   isDetailCell,
   isRecord,
   isSyncedTitleCell,
+  moveCell,
   normalizeCells,
   toggleCellDone,
   type BoardCell,
@@ -91,6 +93,12 @@ import {
   isArrowKey,
   shouldLeaveCell,
 } from './keyboard'
+import {
+  OUTER_BLOCKS,
+  getActionCells,
+  getAutoScrollDelta,
+  hasMovedEnough,
+} from './drag'
 import { buildPrintBlocks, getPrintTextSize, type PrintMode } from './print'
 import { createSnapshot, getBlockProgress, localDateKey, recordSnapshot } from './progress'
 import { BlockMeter, BlockProgressList, ProgressHistoryChart } from './ProgressPanels'
@@ -120,6 +128,8 @@ const UNDO_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Z' : 'Ctrl+Z'
 const REDO_SHORTCUT = IS_APPLE_PLATFORM ? '⇧⌘Z' : 'Ctrl+Y'
 // 실천 칸에서 완료 체크를 바꾸는 단축키 (#9)
 const CHECK_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Enter' : 'Ctrl+Enter'
+// 실천 칸에서 '다른 칸으로 이동' 창을 여는 단축키 (#13)
+const MOVE_SHORTCUT = IS_APPLE_PLATFORM ? '⌥M' : 'Alt+M'
 // 블록마다 Tab으로 처음 들어가는 칸. 처음에는 블록 가운데(중심 목표, 블록 제목)다. (#9)
 const INITIAL_ACTIVE_CELLS = Array.from({ length: 9 }, (_, block) => getCellIndex(block, 4))
 const EMPTY_HISTORY = createHistory<BoardCell[]>()
@@ -150,6 +160,23 @@ function isTextEntryTarget(target: EventTarget | null) {
     return !['button', 'checkbox', 'file', 'radio', 'reset', 'submit'].includes(target.type)
   }
   return target instanceof HTMLElement && target.isContentEditable
+}
+
+// 실천 칸 드래그 상태 (#13). 렌더링에 필요한 값만 state로 두고, 포인터 좌표는 ref에 둔다.
+type DragState = {
+  from: number
+  // 지금 포인터 아래에 있는 실천 칸 (없으면 null)
+  target: number | null
+}
+
+type DragPointer = {
+  pointerId: number
+  from: number
+  startX: number
+  startY: number
+  x: number
+  y: number
+  started: boolean
 }
 
 type MoreActionKey = 'png' | 'print' | 'backup' | 'restore' | 'install' | 'samples' | 'reset'
@@ -320,6 +347,19 @@ function App() {
   const dialogOpener = useRef<HTMLElement | null>(null)
   // 더보기 버튼에서 위 화살표로 열면 마지막 항목에 포커스를 둔다.
   const moreFocusLast = useRef(false)
+  // 실천 칸 드래그 이동 (#13)
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const dragPointer = useRef<DragPointer | null>(null)
+  const dragGhost = useRef<HTMLDivElement | null>(null)
+  const autoScrollFrame = useRef<number | null>(null)
+  // 드래그를 끝낸 직후 손잡이에서 생기는 click(이동 창 열기)을 무시할 시각까지 (ms)
+  const suppressHandleClickUntil = useRef(0)
+  const endDragRef = useRef<() => boolean>(() => false)
+  // '다른 칸으로 이동' 창 (#13)
+  const moveDialog = useRef<HTMLDialogElement>(null)
+  const [moveSource, setMoveSource] = useState<number | null>(null)
+  const [moveBlock, setMoveBlock] = useState(0)
+  const [moveTarget, setMoveTarget] = useState<number | null>(null)
   const pwa = usePwa({
     onOfflineReady: () => showNotice({ message: t.offlineReady, kind: 'success' }),
   })
@@ -390,6 +430,7 @@ function App() {
         // 대화상자가 열려 있으면 뒤쪽 보드를 바꾸지 않는다.
         sampleDialog.current?.open ||
         printDialog.current?.open ||
+        moveDialog.current?.open ||
         boardsDialog.current?.open
       ) {
         return
@@ -625,6 +666,21 @@ function App() {
       }
       return
     }
+    // Alt/Option+M: 실천 칸을 다른 칸으로 옮기는 창을 연다. (#13)
+    // Mac에서는 Option+M이 다른 글자(µ)를 만들므로 key 대신 code로 확인한다.
+    if (
+      event.code === 'KeyM' &&
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey
+    ) {
+      if (isDetailCell(index)) {
+        event.preventDefault()
+        openMoveDialog(index)
+      }
+      return
+    }
     if (
       !isArrowKey(event.key) ||
       event.shiftKey ||
@@ -647,6 +703,223 @@ function App() {
     event.preventDefault()
     focusCell(next)
   }
+
+  // ---- 실천 칸 이동 (#13) ----
+
+  // 스크린 리더와 알림에 쓰는 실천 칸 이름: "3번 블록, 실천 5"
+  function getActionName(index: number) {
+    return t.cellName(getBlockIndex(index) + 1, t.numberedAction(getCellNumber(index) ?? 0))
+  }
+
+  // 실천 칸을 옮긴다. 대상 칸에 내용이 있으면 서로 자리를 바꾼다. 실행 취소 기록은 1건만 남긴다.
+  function performMove(from: number, to: number) {
+    const next = moveCell(cells, from, to)
+    if (next === null) {
+      return false
+    }
+    const swapped = hasText(cells[to])
+    endTextEditSession()
+    recordChange(cells)
+    commitCells(next)
+    markEdited()
+    const name = getActionName(to)
+    showNotice({ message: swapped ? t.cellSwapped(name) : t.cellMoved(name), kind: 'success' })
+    return true
+  }
+
+  function openMoveDialog(index: number) {
+    if (!isDetailCell(index) || !hasText(cells[index])) {
+      return
+    }
+    endTextEditSession()
+    setMoveSource(index)
+    setMoveBlock(getBlockIndex(index))
+    setMoveTarget(null)
+    openDialog(moveDialog.current)
+    // 창을 닫으면 손잡이가 아니라 그 칸의 입력창으로 돌아가게 한다.
+    dialogOpener.current =
+      boardFrame.current?.querySelector<HTMLElement>(`[data-cell="${index}"]`) ??
+      dialogOpener.current
+  }
+
+  function closeMoveDialog() {
+    moveDialog.current?.close()
+  }
+
+  function confirmMove() {
+    if (moveSource === null || moveTarget === null) {
+      return
+    }
+    if (performMove(moveSource, moveTarget)) {
+      // 옮긴 내용이 있는 칸으로 포커스를 보낸다. (포커스 모드에서 다른 블록으로 옮겼으면 원래 칸에 남는다)
+      const destination = boardFrame.current?.querySelector<HTMLElement>(
+        `[data-cell="${moveTarget}"]`,
+      )
+      if (destination) {
+        dialogOpener.current = destination
+      }
+    }
+    closeMoveDialog()
+  }
+
+  // 포인터 아래의 실천 칸. 드래그 미리보기는 pointer-events: none이라 그 아래 칸을 찾는다.
+  function findDropCell(x: number, y: number) {
+    const element = document
+      .elementFromPoint(x, y)
+      ?.closest<HTMLElement>('[data-move-cell]')
+    if (!element || !boardFrame.current?.contains(element)) {
+      return null
+    }
+    const index = Number(element.dataset.moveCell)
+    return isDetailCell(index) ? index : null
+  }
+
+  function positionGhost(node: HTMLDivElement | null) {
+    const pointer = dragPointer.current
+    if (node && pointer) {
+      // 손가락·커서에 가리지 않게 오른쪽 아래에 두고, 화면 밖으로 나가면 반대쪽으로 옮긴다.
+      const offset = 14
+      const x =
+        pointer.x + offset + node.offsetWidth > window.innerWidth
+          ? pointer.x - offset - node.offsetWidth
+          : pointer.x + offset
+      const y =
+        pointer.y + offset + node.offsetHeight > window.innerHeight
+          ? pointer.y - offset - node.offsetHeight
+          : pointer.y + offset
+      node.style.transform = `translate(${Math.max(x, 4)}px, ${Math.max(y, 4)}px)`
+    }
+  }
+
+  function updateDropTarget() {
+    const pointer = dragPointer.current
+    if (!pointer?.started) {
+      return
+    }
+    const target = findDropCell(pointer.x, pointer.y)
+    setDrag((current) =>
+      current === null || current.target === target ? current : { ...current, target },
+    )
+  }
+
+  // 화면 위·아래 가장자리로 끌면 자동으로 스크롤한다. 스크롤하면 포인터 아래 칸도 바뀐다.
+  function runAutoScroll() {
+    const pointer = dragPointer.current
+    if (!pointer?.started) {
+      autoScrollFrame.current = null
+      return
+    }
+    const delta = getAutoScrollDelta(pointer.y, window.innerHeight)
+    if (delta !== 0) {
+      window.scrollBy(0, delta)
+      updateDropTarget()
+    }
+    autoScrollFrame.current = window.requestAnimationFrame(runAutoScroll)
+  }
+
+  function endDrag() {
+    const wasDragging = dragPointer.current?.started ?? false
+    dragPointer.current = null
+    if (autoScrollFrame.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrame.current)
+      autoScrollFrame.current = null
+    }
+    document.body.classList.remove('is-dragging-cell')
+    setDrag(null)
+    return wasDragging
+  }
+
+  // 손잡이를 누른다. 아직 드래그는 시작하지 않고, 조금 움직이면 시작한다.
+  // 손잡이는 touch-action: none이라 터치에서도 화면 스크롤 대신 드래그가 된다. (칸의 다른 곳은 그대로 스크롤된다)
+  function handleMovePointerDown(event: ReactPointerEvent<HTMLButtonElement>, index: number) {
+    if (event.button !== 0 || !hasText(cells[index]) || dragPointer.current !== null) {
+      return
+    }
+    // 새로 누를 때는 이전 드래그의 click 무시를 푼다. (터치는 드래그 뒤 click이 오지 않을 수 있다)
+    suppressHandleClickUntil.current = 0
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragPointer.current = {
+      pointerId: event.pointerId,
+      from: index,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: event.clientX,
+      y: event.clientY,
+      started: false,
+    }
+  }
+
+  function handleMovePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const pointer = dragPointer.current
+    if (pointer === null || pointer.pointerId !== event.pointerId) {
+      return
+    }
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+    if (!pointer.started) {
+      if (!hasMovedEnough(pointer.startX, pointer.startY, pointer.x, pointer.y)) {
+        return
+      }
+      pointer.started = true
+      endTextEditSession()
+      document.body.classList.add('is-dragging-cell')
+      setDrag({ from: pointer.from, target: null })
+      autoScrollFrame.current = window.requestAnimationFrame(runAutoScroll)
+    }
+    event.preventDefault()
+    positionGhost(dragGhost.current)
+    updateDropTarget()
+  }
+
+  function handleMovePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
+    const pointer = dragPointer.current
+    if (pointer === null || pointer.pointerId !== event.pointerId) {
+      return
+    }
+    const target = pointer.started ? findDropCell(event.clientX, event.clientY) : null
+    if (endDrag()) {
+      suppressHandleClickUntil.current = event.timeStamp + 500
+      if (target !== null && target !== pointer.from) {
+        performMove(pointer.from, target)
+      }
+    }
+  }
+
+  function handleMovePointerCancel(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (endDrag()) {
+      suppressHandleClickUntil.current = event.timeStamp + 500
+    }
+  }
+
+  // 손잡이를 누르기만 하고 떼면(탭, 클릭, 스크린 리더의 실행) 이동 창을 연다.
+  function handleMoveClick(event: ReactMouseEvent<HTMLButtonElement>, index: number) {
+    if (event.timeStamp < suppressHandleClickUntil.current) {
+      suppressHandleClickUntil.current = 0
+      return
+    }
+    openMoveDialog(index)
+  }
+
+  useEffect(() => {
+    endDragRef.current = endDrag
+  })
+
+  // 드래그 중 Esc를 누르면 옮기지 않고 취소한다.
+  useEffect(() => {
+    if (drag === null) {
+      return
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (endDragRef.current()) {
+          suppressHandleClickUntil.current = event.timeStamp + 500
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [drag])
 
   function rememberActiveCell(index: number) {
     const block = getBlockIndex(index)
@@ -1200,12 +1473,16 @@ function App() {
         : isSubgoal
           ? t.areaExamples[CENTER_GOAL_HINT_INDEX[index]] ?? t.goalPlaceholder
           : t.actionPlaceholder
+    // 드래그 중 포인터 아래에 있는 칸(놓을 자리). 원래 칸 위에서는 표시하지 않는다. (#13)
+    const isDropTarget = drag !== null && drag.target === index && drag.from !== index
     const cellClass = [
       'mandala-cell',
       isHub ? 'mandala-cell--hub' : '',
       isSubgoal ? 'mandala-cell--subgoal' : '',
       isSynced ? 'mandala-cell--synced' : '',
       cell.done && isAction && hasText(cell) ? 'mandala-cell--done' : '',
+      drag?.from === index ? 'mandala-cell--drag-source' : '',
+      isDropTarget ? 'mandala-cell--drop-target' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -1228,7 +1505,13 @@ function App() {
         : cellName
 
     return (
-      <article className={cellClass} key={index}>
+      <article className={cellClass} data-move-cell={isAction ? index : undefined} key={index}>
+        {/* 놓을 자리를 색만이 아니라 글로도 알려 준다. (#13) */}
+        {isDropTarget && (
+          <span aria-hidden="true" className="drop-label">
+            {hasText(cell) ? t.dropSwap : t.dropMove}
+          </span>
+        )}
         {/* 연동 칸은 직접 고칠 수 없지만, 방향키로 들어가 내용을 읽을 수 있게 readOnly로 둔다. */}
         <textarea
           aria-label={inputLabel}
@@ -1261,7 +1544,27 @@ function App() {
             <span className="cell-caption">{t.subgoal}</span>
           )}
           {isAction && (
-            // Tab 정지점을 줄이려고 Tab 순서에서는 뺀다. 키보드는 입력창에서 Ctrl/Cmd+Enter로 체크한다.
+            <span className="cell-actions">
+              {/* 드래그 손잡이 (#13). 끌면 다른 칸으로 옮기고, 누르기만 하면 '다른 칸으로 이동' 창을 연다.
+                  Tab 순서에서는 빼고, 키보드는 입력창에서 Alt/Option+M으로 같은 창을 연다. */}
+              <button
+                aria-haspopup="dialog"
+                aria-label={t.moveHandle(cellName)}
+                className="cell-move"
+                disabled={!hasText(cell)}
+                onClick={(event) => handleMoveClick(event, index)}
+                onLostPointerCapture={handleMovePointerCancel}
+                onPointerCancel={handleMovePointerCancel}
+                onPointerDown={(event) => handleMovePointerDown(event, index)}
+                onPointerMove={handleMovePointerMove}
+                onPointerUp={handleMovePointerUp}
+                tabIndex={-1}
+                title={!hasText(cell) ? t.completedDisabled : `${t.moveHandle(cellName)} (${MOVE_SHORTCUT})`}
+                type="button"
+              >
+                <GripVertical aria-hidden="true" size={11} />
+              </button>
+              {/* Tab 정지점을 줄이려고 Tab 순서에서는 뺀다. 키보드는 입력창에서 Ctrl/Cmd+Enter로 체크한다. */}
             <button
               aria-label={t.markDone(cellName)}
               aria-pressed={hasText(cell) && cell.done}
@@ -1274,6 +1577,7 @@ function App() {
             >
               {cell.done && <Check aria-hidden="true" size={11} strokeWidth={3} />}
             </button>
+            </span>
           )}
         </div>
       </article>
@@ -1864,12 +2168,31 @@ function App() {
           <div
             aria-describedby="board-keyboard-hint"
             aria-label={t.boardLabel}
-            className="mandala-board"
+            className={`mandala-board ${drag !== null ? 'mandala-board--dragging' : ''}`}
             role="group"
           >
             {focusMode ? renderBlock(selectedBlock) : Array.from({ length: 9 }, (_, index) => renderBlock(index))}
           </div>
         </div>
+
+        {/* 드래그 중 포인터를 따라다니는 미리보기 (#13) */}
+        {drag !== null && (
+          <div
+            aria-hidden="true"
+            className="drag-ghost"
+            ref={(node) => {
+              dragGhost.current = node
+              positionGhost(node)
+            }}
+          >
+            <span className="drag-ghost__text">{cells[drag.from].text}</span>
+            <span className="drag-ghost__target">
+              {drag.target !== null && drag.target !== drag.from
+                ? `→ ${getActionName(drag.target)} · ${hasText(cells[drag.target]) ? t.dropSwap : t.dropMove}`
+                : getActionName(drag.from)}
+            </span>
+          </div>
+        )}
 
         <div className="board-legend">
           <span><i className="legend-dot legend-dot--goal" /> {t.legendCenter}</span>
@@ -1877,7 +2200,7 @@ function App() {
           <span><i className="legend-dot legend-dot--action" /> {t.legendAction}</span>
         </div>
         <p className="board-keyboard-hint" id="board-keyboard-hint">
-          {t.keyboardHint(CHECK_SHORTCUT)}
+          {t.keyboardHint(CHECK_SHORTCUT, MOVE_SHORTCUT)}
         </p>
       </section>
 
@@ -1992,6 +2315,122 @@ function App() {
             </button>
           </div>
         </form>
+      </dialog>
+
+      {/* 실천 칸을 다른 칸으로 옮기는 창 (#13). 드래그를 못 쓰는 키보드·스크린 리더·포커스 모드에서 쓴다. */}
+      {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+      <dialog
+        aria-labelledby="move-dialog-title"
+        className="sample-dialog"
+        onClose={() => {
+          setMoveSource(null)
+          restoreDialogFocus()
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            closeMoveDialog()
+          }
+        }}
+        ref={moveDialog}
+      >
+        {moveSource !== null && (
+          <form
+            className="sample-dialog__body"
+            method="dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              confirmMove()
+            }}
+          >
+            <div className="sample-dialog__header">
+              <h2 id="move-dialog-title">{t.moveTitle}</h2>
+              <button
+                aria-label={t.cancel}
+                className="sample-dialog__close"
+                onClick={closeMoveDialog}
+                title={t.cancel}
+                type="button"
+              >
+                <X aria-hidden="true" size={16} />
+              </button>
+            </div>
+            <p className="sample-dialog__intro move-dialog__source">
+              {t.moveSource(getActionName(moveSource), cells[moveSource].text)}
+            </p>
+
+            <label className="move-dialog__field">
+              <span>{t.moveBlockLabel}</span>
+              <select
+                onChange={(event) => {
+                  setMoveBlock(Number(event.target.value))
+                  setMoveTarget(null)
+                }}
+                value={moveBlock}
+              >
+                {OUTER_BLOCKS.map((blockIndex) => (
+                  <option key={blockIndex} value={blockIndex}>
+                    {`${String(blockIndex + 1).padStart(2, '0')} · ${getBlockTitle(cells, blockIndex, language)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <fieldset className="move-grid">
+              <legend>{t.moveTargetLabel}</legend>
+              {Array.from({ length: 9 }, (_, local) => {
+                const index = getCellIndex(moveBlock, local)
+                if (!getActionCells(moveBlock).includes(index)) {
+                  // 블록 가운데는 연동된 제목 칸이라 옮길 수 없다. 위치를 알 수 있게 제목만 보여 준다.
+                  return (
+                    <span aria-hidden="true" className="move-grid__title" key={index}>
+                      {getBlockTitle(cells, moveBlock, language)}
+                    </span>
+                  )
+                }
+                const target = cells[index]
+                const isSource = index === moveSource
+                return (
+                  <label
+                    className={`move-grid__option ${moveTarget === index ? 'is-selected' : ''} ${isSource ? 'is-source' : ''}`}
+                    key={index}
+                  >
+                    <input
+                      checked={moveTarget === index}
+                      disabled={isSource}
+                      name="move-target"
+                      onChange={() => setMoveTarget(index)}
+                      type="radio"
+                      value={index}
+                    />
+                    <span className="move-grid__number">
+                      {t.numberedAction(getCellNumber(index) ?? 0)}
+                      {isSource && <span className="visually-hidden">{`, ${t.moveCurrent}`}</span>}
+                    </span>
+                    <span className={`move-grid__text ${hasText(target) ? '' : 'is-empty'}`}>
+                      {isSource ? t.moveCurrent : hasText(target) ? target.text : t.moveEmpty}
+                    </span>
+                  </label>
+                )
+              })}
+            </fieldset>
+
+            <p className="sample-dialog__note">{t.moveNote}</p>
+
+            <div className="sample-dialog__actions">
+              <button className="banner-button" onClick={closeMoveDialog} type="button">
+                {t.cancel}
+              </button>
+              <button
+                className="banner-button banner-button--primary"
+                disabled={moveTarget === null}
+                type="submit"
+              >
+                {moveTarget !== null && hasText(cells[moveTarget]) ? t.dropSwap : t.moveConfirm}
+              </button>
+            </div>
+          </form>
+        )}
       </dialog>
 
       {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}

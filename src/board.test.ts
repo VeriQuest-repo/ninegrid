@@ -9,6 +9,7 @@ import {
   isDetailCell,
   isPersistedState,
   isSyncedTitleCell,
+  moveCell,
   normalizeCells,
   parseBackup,
   toggleCellDone,
@@ -127,6 +128,79 @@ describe('빈 칸 체크 규칙', () => {
   it('이전 버전에 저장된 "빈 칸인데 체크됨" 상태를 불러올 때 해제한다', () => {
     const cells = withCells({ [ACTION_CELL]: { text: '', done: true } })
     expect(normalizeCells(cells)[ACTION_CELL].done).toBe(false)
+  })
+})
+
+describe('실천 칸 이동 (#13)', () => {
+  const from = cellAt(0, 0) // 1번 블록, 실천 1
+  const emptyTarget = cellAt(0, 2) // 1번 블록, 실천 3
+  const otherBlock = cellAt(8, 8) // 9번 블록, 실천 8
+
+  function boardWith(entries: Array<[number, BoardCell]>) {
+    const cells = createInitialCells()
+    entries.forEach(([index, cell]) => {
+      cells[index] = cell
+    })
+    return cells
+  }
+
+  const texts = (cells: BoardCell[]) =>
+    cells.map((cell) => cell.text).filter(Boolean).sort()
+
+  it('빈 칸으로 옮기면 텍스트와 체크가 함께 가고 원래 칸은 빈다', () => {
+    const cells = boardWith([[from, { text: '스트레칭', done: true }]])
+    const next = moveCell(cells, from, emptyTarget)
+
+    expect(next?.[emptyTarget]).toEqual({ text: '스트레칭', done: true })
+    expect(next?.[from]).toEqual({ text: '', done: false })
+  })
+
+  it('내용이 있는 칸으로 옮기면 두 칸이 자리를 바꾼다 (다른 블록 포함)', () => {
+    const cells = boardWith([
+      [from, { text: '스트레칭', done: true }],
+      [otherBlock, { text: '영어 단어', done: false }],
+    ])
+    const next = moveCell(cells, from, otherBlock)
+
+    expect(next?.[otherBlock]).toEqual({ text: '스트레칭', done: true })
+    expect(next?.[from]).toEqual({ text: '영어 단어', done: false })
+  })
+
+  it('옮겨도 칸 내용이 사라지거나 겹치지 않고, 원래 보드는 바꾸지 않는다', () => {
+    const cells = boardWith([
+      [from, { text: 'A', done: true }],
+      [emptyTarget, { text: 'B', done: false }],
+      [otherBlock, { text: 'C', done: true }],
+    ])
+    const before = structuredClone(cells)
+    const next = moveCell(cells, from, otherBlock)!
+
+    expect(texts(next)).toEqual(texts(cells))
+    expect(getProgress(next)).toEqual(getProgress(cells))
+    expect(cells).toEqual(before)
+  })
+
+  it('다시 옮기면 원래대로 돌아온다', () => {
+    const cells = boardWith([
+      [from, { text: 'A', done: true }],
+      [otherBlock, { text: 'C', done: false }],
+    ])
+    expect(moveCell(moveCell(cells, from, otherBlock)!, otherBlock, from)).toEqual(cells)
+  })
+
+  it('중심 목표·세부 목표·연동 제목 칸은 옮길 수 없고, 그 칸으로 옮길 수도 없다', () => {
+    const cells = boardWith([[from, { text: 'A', done: false }]])
+    const [subgoal, title] = SUBGOAL_TO_TITLE[0]
+
+    expect(moveCell(cells, from, title)).toBeNull()
+    expect(moveCell(cells, title, from)).toBeNull()
+    expect(moveCell(cells, from, subgoal)).toBeNull()
+    expect(moveCell(cells, CENTER_CELL, from)).toBeNull()
+  })
+
+  it('같은 칸으로는 옮기지 않는다', () => {
+    const cells = boardWith([[from, { text: 'A', done: false }]])
+    expect(moveCell(cells, from, from)).toBeNull()
   })
 })
 
