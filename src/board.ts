@@ -202,3 +202,18 @@ export function cellsEqual(a: BoardCell[], b: BoardCell[]) {
     a.every((cell, index) => cell.text === b[index].text && cell.done === b[index].done)
   )
 }
+
+// 실천 칸 하나를 다른 실천 칸으로 옮긴다. (#13)
+// - 대상 칸이 비어 있으면 그 자리로 옮기고, 내용이 있으면 두 칸의 자리를 서로 바꾼다. (덮어써서 사라지는 내용이 없다)
+// - 텍스트와 완료 상태가 칸과 함께 이동한다.
+// - 실천 칸이 아니거나(중심 목표·세부 목표·연동 제목 칸) 같은 칸이면 null (옮길 수 없음)
+export function moveCell(cells: BoardCell[], from: number, to: number) {
+  if (from === to || !isDetailCell(from) || !isDetailCell(to)) {
+    return null
+  }
+
+  const next = cells.map((cell) => ({ ...cell }))
+  next[from] = { ...cells[to] }
+  next[to] = { ...cells[from] }
+  return next
+}
