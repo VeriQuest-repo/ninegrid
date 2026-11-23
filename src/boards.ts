@@ -4,7 +4,7 @@
 // 저장 구조 (v2)
 // - ninegrid-boards-v2: 앱 설정과 보드 목록
 //   { version: 2, theme, language, currentBoardId, boards: [{ id, name, createdAt, updatedAt }] }
-// - ninegrid-board-v2:<id>: 보드별 칸 데이터 { cells }
+// - ninegrid-board-v2:<id>: 보드별 칸 데이터와 진척 기록 { cells, history } (history는 #11에서 추가, 없으면 빈 기록)
 // - 이전 단일 보드 키(ninegrid-board-v1)는 첫 실행 때 첫 번째 보드로 옮기고, 롤백을 위해 지우지 않는다.
 import {
   hasText,
@@ -20,6 +20,7 @@ import {
   parseBackup,
 } from './board'
 import { isLanguage, type Language } from './i18n'
+import { parseHistory, type ProgressSnapshot } from './progress'
 
 export const LEGACY_STORAGE_KEY = 'ninegrid-board-v1'
 export const INDEX_STORAGE_KEY = 'ninegrid-boards-v2'
@@ -38,6 +39,8 @@ export type BoardMeta = {
 
 export type BoardRecord = BoardMeta & {
   cells: BoardCell[]
+  // 날짜별 진척 기록 (#11). 오래된 순서
+  history: ProgressSnapshot[]
 }
 
 export type AppData = {
@@ -88,13 +91,19 @@ export function nextDefaultName(boards: BoardMeta[], defaultName: DefaultName) {
   return defaultName(number)
 }
 
-export function createBoard(name: string, cells: BoardCell[], now = Date.now()): BoardRecord {
+export function createBoard(
+  name: string,
+  cells: BoardCell[],
+  now = Date.now(),
+  history: ProgressSnapshot[] = [],
+): BoardRecord {
   return {
     id: createBoardId(now),
     name: cleanBoardName(name),
     createdAt: now,
     updatedAt: now,
     cells,
+    history,
   }
 }
 
@@ -199,7 +208,7 @@ export function saveIndex(storage: StorageLike, data: AppData): SaveResult {
 
 export function saveBoardCells(storage: StorageLike, board: BoardRecord): SaveResult {
   try {
-    storage.setItem(boardStorageKey(board.id), JSON.stringify({ cells: board.cells }))
+    storage.setItem(boardStorageKey(board.id), JSON.stringify({ cells: board.cells, history: board.history }))
     return { ok: true }
   } catch (error) {
     return failure(error)
@@ -272,13 +281,13 @@ export function loadAppData(
           try {
             const raw = readJson(storage, boardStorageKey(meta.id))
             if (isRecord(raw) && isBoardCellArray(raw.cells)) {
-              return { ...meta, cells: normalizeCells(raw.cells) }
+              return { ...meta, cells: normalizeCells(raw.cells), history: parseHistory(raw.history) }
             }
           } catch {
             // 아래에서 빈 보드로 연다.
           }
           problem = 'invalid'
-          return { ...meta, cells: createInitialCells() }
+          return { ...meta, cells: createInitialCells(), history: [] }
         })
         const currentBoardId = boards.some((board) => board.id === index.currentBoardId)
           ? index.currentBoardId
@@ -341,7 +350,13 @@ export type BackupScope = 'all' | 'board'
 
 export type ParsedBackup = {
   scope: BackupScope
-  boards: { name: string | null; cells: BoardCell[]; createdAt: number | null; updatedAt: number | null }[]
+  boards: {
+    name: string | null
+    cells: BoardCell[]
+    history: ProgressSnapshot[]
+    createdAt: number | null
+    updatedAt: number | null
+  }[]
   // 전체 백업에서 열려 있던 보드의 위치
   currentIndex: number
   theme: Theme | null
@@ -362,12 +377,13 @@ export function buildBackup(
     theme: data.theme,
     language: data.language,
     currentBoardId: scope === 'all' ? data.currentBoardId : boards[0].id,
-    boards: boards.map(({ id, name, createdAt, updatedAt, cells }) => ({
+    boards: boards.map(({ id, name, createdAt, updatedAt, cells, history }) => ({
       id,
       name,
       createdAt,
       updatedAt,
       cells,
+      history,
     })),
   }
 }
@@ -390,7 +406,7 @@ export function parseBackupFile(value: unknown): ParsedBackup | null {
     }
     return {
       scope: 'board',
-      boards: [{ name: null, cells: legacy.cells, createdAt: null, updatedAt: null }],
+      boards: [{ name: null, cells: legacy.cells, history: [], createdAt: null, updatedAt: null }],
       currentIndex: 0,
       theme: legacy.theme,
       language: legacy.language ?? null,
@@ -425,6 +441,8 @@ export function parseBackupFile(value: unknown): ParsedBackup | null {
     boards: boards.map((board) => ({
       name: cleanBoardName(board.name as string) || null,
       cells: normalizeCells(board.cells as BoardCell[]),
+      // 진척 기록이 없는 이전 백업(#11 이전)도 그대로 불러온다.
+      history: parseHistory(board.history),
       createdAt: isFiniteNumber(board.createdAt) ? board.createdAt : null,
       updatedAt: isFiniteNumber(board.updatedAt) ? board.updatedAt : null,
     })),
@@ -445,7 +463,12 @@ export function boardsFromBackup(
   const usedIds = new Set(existing.map((board) => board.id))
   backup.boards.forEach((board) => {
     const fallback = nextDefaultName([...existing, ...result], defaultName)
-    let record = createBoard(board.name ?? nameFromCells(board.cells, fallback), board.cells, now)
+    let record = createBoard(
+      board.name ?? nameFromCells(board.cells, fallback),
+      board.cells,
+      now,
+      board.history,
+    )
     while (usedIds.has(record.id)) {
       record = { ...record, id: createBoardId(now) }
     }

@@ -287,12 +287,12 @@ describe('JSON 백업', () => {
 
   it('이름 없는 백업은 중심 목표나 기본 이름으로 이름을 붙인다', () => {
     const named = boardsFromBackup(
-      { scope: 'board', boards: [{ name: null, cells: cellsWith({ [CENTER_CELL]: { text: '목표' } }), createdAt: null, updatedAt: null }], currentIndex: 0, theme: null, language: null },
+      { scope: 'board', boards: [{ name: null, cells: cellsWith({ [CENTER_CELL]: { text: '목표' } }), history: [], createdAt: null, updatedAt: null }], currentIndex: 0, theme: null, language: null },
       [],
       defaultName,
     )
     const unnamed = boardsFromBackup(
-      { scope: 'board', boards: [{ name: null, cells: createInitialCells(), createdAt: null, updatedAt: null }], currentIndex: 0, theme: null, language: null },
+      { scope: 'board', boards: [{ name: null, cells: createInitialCells(), history: [], createdAt: null, updatedAt: null }], currentIndex: 0, theme: null, language: null },
       sampleData().boards,
       defaultName,
     )
@@ -322,5 +322,58 @@ describe('보드 목록 도우미', () => {
   it('보드 이름의 앞뒤 공백을 지우고 길이를 제한한다', () => {
     expect(cleanBoardName('  2027   목표 ')).toBe('2027 목표')
     expect(cleanBoardName('가'.repeat(60))).toHaveLength(40)
+  })
+})
+
+describe('진척 기록 저장 (#11)', () => {
+  const history = [
+    {
+      date: '2026-11-22',
+      progress: 100,
+      completedCount: 1,
+      writtenCount: 1,
+      blockCompleted: [1, 0, 0, 0, 0, 0, 0, 0],
+    },
+  ]
+
+  it('보드별로 저장하고 다른 보드와 섞이지 않는다', () => {
+    const storage = new MemoryStorage()
+    const data = sampleData()
+    data.boards[1] = { ...data.boards[1], history }
+    replaceBoards(storage, { ...data, boards: [] }, data)
+
+    const loaded = loadAppData(storage, 'ko', defaultName).data
+    expect(loaded.boards[0].history).toEqual([])
+    expect(loaded.boards[1].history).toEqual(history)
+  })
+
+  it('기록이 없는 이전 v2 칸 데이터도 빈 기록으로 읽는다', () => {
+    const storage = new MemoryStorage()
+    const data = sampleData()
+    replaceBoards(storage, { ...data, boards: [] }, data)
+    storage.setItem(boardStorageKey('b'), JSON.stringify({ cells: data.boards[1].cells }))
+
+    const loaded = loadAppData(storage, 'ko', defaultName)
+    expect(loaded.problem).toBeNull()
+    expect(loaded.data.boards[1].history).toEqual([])
+  })
+
+  it('백업에 기록을 담고, 복원하면 그대로 돌아온다', () => {
+    const data = sampleData()
+    data.boards[1] = { ...data.boards[1], history }
+    const backup = parseBackupFile(JSON.parse(JSON.stringify(buildBackup(data, 'all'))))
+    expect(backup?.boards.map((board) => board.history)).toEqual([[], history])
+
+    const restored = boardsFromBackup(backup!, [], defaultName)
+    expect(restored[1].history).toEqual(history)
+  })
+
+  it('기록이 없는 이전 백업도 불러온다', () => {
+    const data = sampleData()
+    const raw = JSON.parse(JSON.stringify(buildBackup(data, 'all')))
+    raw.boards.forEach((board: Record<string, unknown>) => delete board.history)
+    const backup = parseBackupFile(raw)
+    expect(backup?.boards).toHaveLength(2)
+    expect(backup?.boards.every((board) => board.history.length === 0)).toBe(true)
   })
 })

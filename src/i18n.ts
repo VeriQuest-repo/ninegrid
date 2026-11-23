@@ -24,6 +24,25 @@ export type Translation = {
   completedCount: (count: number, total: number) => string
   writtenSummary: (written: number) => string
   detailCount: string
+  blockProgressTitle: string
+  blockProgressHint: string
+  blockProgressLabel: (title: string) => string
+  blockNoPractice: string
+  blockNoPracticeShort: string
+  focusBlockProgress: (title: string) => string
+  historyTitle: string
+  historyRangeLabel: string
+  historyRange4w: string
+  historyRangeAll: string
+  historyEmpty: string
+  historySummary: (from: number, to: number, days: number) => string
+  historyFirstDay: (value: number) => string
+  historyChartLabel: (range: string, from: number, to: number, start: string, end: string) => string
+  historyTableCaption: string
+  historyDateColumn: string
+  historyProgressColumn: string
+  historyCountColumn: string
+  historyNote: string
   boardLabel: string
   boardSize: string
   autoSaving: string
@@ -167,6 +186,26 @@ export const translations: Record<Language, Translation> = {
     completedCount: (count, total) => `완료 ${count} / 작성 ${total}`,
     writtenSummary: (written) => `작성한 실천 ${written}개 · 완료 0개`,
     detailCount: '작성한 실천 기준',
+    blockProgressTitle: '영역별 달성률',
+    blockProgressHint: '8개 영역 블록마다 작성한 실천 중 완료한 비율입니다.',
+    blockProgressLabel: (title) => `${title} 달성률`,
+    blockNoPractice: '아직 작성한 실천이 없어요',
+    blockNoPracticeShort: '작성 전',
+    focusBlockProgress: (title) => `${title} 블록 달성률`,
+    historyTitle: '진척 기록',
+    historyRangeLabel: '기간',
+    historyRange4w: '최근 4주',
+    historyRangeAll: '전체',
+    historyEmpty: '실천을 작성하고 체크하면 날짜별 달성률이 여기에 쌓입니다.',
+    historySummary: (from, to, days) => `${days}일 동안 ${from}% → ${to}%`,
+    historyFirstDay: (value) => `오늘 첫 기록: ${value}%`,
+    historyChartLabel: (range, from, to, start, end) =>
+      `${range} 달성률 추이 그래프: ${start} ${from}%에서 ${end} ${to}%`,
+    historyTableCaption: '날짜별 달성률',
+    historyDateColumn: '날짜',
+    historyProgressColumn: '달성률',
+    historyCountColumn: '완료 / 작성',
+    historyNote: '하루에 한 번, 그날의 마지막 값으로 기록됩니다.',
     boardLabel: '만다라트 보드',
     boardSize: '9 × 9',
     autoSaving: '자동 저장 중',
@@ -328,6 +367,26 @@ export const translations: Record<Language, Translation> = {
     writtenSummary: (written) =>
       `${written} ${written === 1 ? 'action' : 'actions'} written · 0 done`,
     detailCount: 'Based on written actions',
+    blockProgressTitle: 'Progress by area',
+    blockProgressHint: 'Share of written actions completed in each of the 8 area blocks.',
+    blockProgressLabel: (title) => `${title} progress`,
+    blockNoPractice: 'No actions written yet',
+    blockNoPracticeShort: 'Not started',
+    focusBlockProgress: (title) => `${title} block progress`,
+    historyTitle: 'Progress history',
+    historyRangeLabel: 'Range',
+    historyRange4w: 'Last 4 weeks',
+    historyRangeAll: 'All',
+    historyEmpty: 'Write and check off actions, and your daily progress will build up here.',
+    historySummary: (from, to, days) => `${from}% → ${to}% over ${days} ${days === 1 ? 'day' : 'days'}`,
+    historyFirstDay: (value) => `First record today: ${value}%`,
+    historyChartLabel: (range, from, to, start, end) =>
+      `Progress trend, ${range}: from ${from}% on ${start} to ${to}% on ${end}`,
+    historyTableCaption: 'Progress by date',
+    historyDateColumn: 'Date',
+    historyProgressColumn: 'Progress',
+    historyCountColumn: 'Done / written',
+    historyNote: 'Recorded once a day with that day’s last value.',
     boardLabel: 'Mandalart board',
     boardSize: '9 × 9',
     autoSaving: 'Saved automatically',
@@ -487,6 +546,26 @@ export const translations: Record<Language, Translation> = {
     completedCount: (count, total) => `完了 ${count} / 記入 ${total}`,
     writtenSummary: (written) => `記入した行動 ${written}件 · 完了 0件`,
     detailCount: '記入した行動が基準',
+    blockProgressTitle: 'エリア別の達成率',
+    blockProgressHint: '8つのエリアブロックごとに、記入した行動のうち完了した割合です。',
+    blockProgressLabel: (title) => `${title}の達成率`,
+    blockNoPractice: 'まだ記入した行動がありません',
+    blockNoPracticeShort: '未記入',
+    focusBlockProgress: (title) => `${title}ブロックの達成率`,
+    historyTitle: '進捗の記録',
+    historyRangeLabel: '期間',
+    historyRange4w: '直近4週間',
+    historyRangeAll: 'すべて',
+    historyEmpty: '行動を記入してチェックすると、日ごとの達成率がここにたまります。',
+    historySummary: (from, to, days) => `${days}日間で ${from}% → ${to}%`,
+    historyFirstDay: (value) => `今日の最初の記録: ${value}%`,
+    historyChartLabel: (range, from, to, start, end) =>
+      `${range}の達成率の推移グラフ: ${start} ${from}% から ${end} ${to}%`,
+    historyTableCaption: '日付別の達成率',
+    historyDateColumn: '日付',
+    historyProgressColumn: '達成率',
+    historyCountColumn: '完了 / 記入',
+    historyNote: '1日1回、その日の最後の値で記録されます。',
     boardLabel: 'マンダラートボード',
     boardSize: '9 × 9',
     autoSaving: '自動保存中',
@@ -644,6 +723,26 @@ export const translations: Record<Language, Translation> = {
     completedCount: (count, total) => `完成 ${count} / 已填写 ${total}`,
     writtenSummary: (written) => `已填写 ${written} 项行动 · 完成 0 项`,
     detailCount: '按已填写的行动计算',
+    blockProgressTitle: '各领域完成率',
+    blockProgressHint: '8 个领域区块中，已填写行动的完成比例。',
+    blockProgressLabel: (title) => `${title}完成率`,
+    blockNoPractice: '还没有填写行动',
+    blockNoPracticeShort: '未填写',
+    focusBlockProgress: (title) => `${title}区块完成率`,
+    historyTitle: '进度记录',
+    historyRangeLabel: '时间范围',
+    historyRange4w: '最近 4 周',
+    historyRangeAll: '全部',
+    historyEmpty: '填写并勾选行动后，每天的完成率会记录在这里。',
+    historySummary: (from, to, days) => `${days} 天内 ${from}% → ${to}%`,
+    historyFirstDay: (value) => `今天的第一条记录：${value}%`,
+    historyChartLabel: (range, from, to, start, end) =>
+      `${range}完成率趋势图：从 ${start} 的 ${from}% 到 ${end} 的 ${to}%`,
+    historyTableCaption: '每日完成率',
+    historyDateColumn: '日期',
+    historyProgressColumn: '完成率',
+    historyCountColumn: '完成 / 已填写',
+    historyNote: '每天记录一次，取当天最后的数值。',
     boardLabel: '九宫格目标看板',
     boardSize: '9 × 9',
     autoSaving: '自动保存中',
