@@ -92,6 +92,8 @@ import {
   shouldLeaveCell,
 } from './keyboard'
 import { buildPrintBlocks, getPrintTextSize, type PrintMode } from './print'
+import { createSnapshot, getBlockProgress, localDateKey, recordSnapshot } from './progress'
+import { BlockMeter, BlockProgressList, ProgressHistoryChart } from './ProgressPanels'
 import './App.css'
 
 // 보드는 여러 개(#10)를 ninegrid-boards-v2 / ninegrid-board-v2:<id> 키에 저장한다. (src/boards.ts)
@@ -248,14 +250,7 @@ function readInitialState(): { data: AppData; notice: Notice | null } {
 }
 
 // 파일 이름에 붙일 오늘 날짜 (YYYY-MM-DD, 사용자 기기 시간 기준)
-function todayStamp() {
-  const today = new Date()
-  return [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, '0'),
-    String(today.getDate()).padStart(2, '0'),
-  ].join('-')
-}
+const todayStamp = () => localDateKey()
 
 function getBlockTitle(cells: BoardCell[], blockIndex: number, language: Language) {
   const t = getTranslation(language)
@@ -419,8 +414,10 @@ function App() {
   }
 
   // 지금 보드의 칸을 바꾸고 저장한다. 저장에 실패해도 화면의 내용은 유지하고 알린다.
+  // 오늘(기기 로컬 날짜)의 진척 기록도 함께 갱신한다. (#11)
   function commitCells(nextCells: BoardCell[]) {
-    const board = withCells(currentBoard, nextCells)
+    const history = recordSnapshot(currentBoard.history, nextCells, localDateKey())
+    const board = { ...withCells(currentBoard, nextCells), history }
     const next: AppData = {
       ...appData,
       boards: boards.map((item) => (item.id === board.id ? board : item)),
@@ -1336,6 +1333,9 @@ function App() {
   function renderBlock(blockIndex: number) {
     const rowStart = Math.floor(blockIndex / 3) * 3
     const columnStart = (blockIndex % 3) * 3
+    // 바깥 블록의 달성률 (#11). 가운데 블록은 실천 칸이 없어 표시하지 않는다.
+    const blockProgress = blockIndex === 4 ? null : getBlockProgress(cells, blockIndex)
+    const title = getBlockTitle(cells, blockIndex, language)
 
     return (
       <section
@@ -1351,6 +1351,15 @@ function App() {
             <span className="block-number">{String(blockIndex + 1).padStart(2, '0')}</span>
             <span className="block-title">{getBlockTitle(cells, blockIndex, language)}</span>
           </span>
+          {blockProgress !== null && (
+            <span aria-hidden="true" className="block-count">
+              {blockProgress.progress === null
+                ? t.blockNoPracticeShort
+                : focusMode
+                  ? `${blockProgress.progress}% · ${t.completedCount(blockProgress.completedCount, blockProgress.writtenCount)}`
+                  : `${blockProgress.completedCount}/${blockProgress.writtenCount}`}
+            </span>
+          )}
           {!focusMode && (
             <button
               aria-label={t.expandBlock(getBlockTitle(cells, blockIndex, language))}
@@ -1360,6 +1369,16 @@ function App() {
             >
               {t.expand}
             </button>
+          )}
+          {blockProgress !== null && (
+            <BlockMeter
+              block={blockProgress}
+              className="block-meter--heading"
+              label={
+                focusMode ? t.focusBlockProgress(title) : t.blockProgressLabel(title)
+              }
+              t={t}
+            />
           )}
         </div>
         <div className="mandala-block__cells">
@@ -1860,6 +1879,25 @@ function App() {
         <p className="board-keyboard-hint" id="board-keyboard-hint">
           {t.keyboardHint(CHECK_SHORTCUT)}
         </p>
+      </section>
+
+      {/* 영역별 달성률과 진척 기록 (#11). 보드마다 따로 계산·저장한다. */}
+      <section aria-label={t.blockProgressTitle} className="insights">
+        <BlockProgressList
+          cells={cells}
+          getTitle={(blockIndex) => getBlockTitle(cells, blockIndex, language)}
+          onSelect={(blockIndex) => {
+            enterFocusMode(blockIndex)
+          }}
+          t={t}
+        />
+        <ProgressHistoryChart
+          current={createSnapshot(cells, localDateKey(new Date(now)))}
+          history={currentBoard.history}
+          key={currentBoard.id}
+          language={language}
+          t={t}
+        />
       </section>
 
       {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}
