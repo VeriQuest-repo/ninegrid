@@ -96,7 +96,6 @@ export type Translation = {
   printDate: (date: string) => string
   printDateBlank: string
   moreActions: string
-  restoreSuccess: string
   invalidBackup: string
   restoreError: string
   samples: string
@@ -106,13 +105,40 @@ export type Translation = {
   sampleDialogIntro: string
   sampleChoiceLabel: string
   sampleProgress: (completed: number, total: number) => string
-  sampleOverwrite: string
   sampleEmptyBoard: string
-  sampleBackupHint: string
-  sampleBackupFirst: string
   sampleLoad: string
   cancel: string
   sampleLoaded: (name: string) => string
+  boardsOpen: (name: string) => string
+  boardsTitle: string
+  boardsIntro: (max: number) => string
+  boardListLabel: string
+  boardCount: (count: number, max: number) => string
+  currentBoardBadge: string
+  boardSummary: (progress: number, date: string) => string
+  newBoard: string
+  defaultBoardName: (number: number) => string
+  copyBoardName: (name: string) => string
+  currentBoardSection: string
+  boardNameLabel: string
+  duplicateBoard: string
+  exportBoard: string
+  deleteBoard: string
+  deleteBoardConfirm: (name: string) => string
+  lastBoardHint: string
+  boardLimit: (max: number) => string
+  boardCreated: (name: string) => string
+  boardDuplicated: (name: string) => string
+  boardDeleted: (name: string) => string
+  boardSwitched: (name: string) => string
+  boardRenamed: (name: string) => string
+  boardBackupSuccess: (name: string) => string
+  restoreAllConfirm: (current: number, incoming: number) => string
+  restoreAllSuccess: (count: number) => string
+  restoreAdded: (name: string) => string
+  quotaError: string
+  sampleNewBoard: string
+  sampleAdded: (name: string) => string
 }
 
 export const translations: Record<Language, Translation> = {
@@ -125,7 +151,7 @@ export const translations: Record<Language, Translation> = {
     focusMode: '포커스 모드',
     showAll: '전체 보기',
     pngDownload: '보드 PNG 다운로드',
-    backupDownload: 'JSON 백업 다운로드',
+    backupDownload: 'JSON 백업 다운로드 (전체 보드)',
     backupRestore: 'JSON 백업 복원',
     backupFile: 'JSON 백업 파일 선택',
     themeToDark: '다크 테마로 변경',
@@ -187,7 +213,7 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '작은 실천이 모여, 큰 변화를 만듭니다.',
     footerSupport: '개발자에게 커피 후원하기',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: '모든 칸을 비우고 빈 보드로 초기화할까요?',
+    resetConfirm: '지금 보드의 모든 칸을 비우고 빈 보드로 초기화할까요? 다른 보드는 그대로 남아요.',
     resetSuccess: '빈 보드로 초기화했어요.',
     saveError: '자동 저장에 실패했어요. 브라우저 저장 공간을 확인해 주세요.',
     invalidStorage: '저장된 데이터 형식이 올바르지 않아 기본 보드를 열었어요.',
@@ -198,7 +224,7 @@ export const translations: Record<Language, Translation> = {
       message
         ? `PNG 이미지 생성에 실패했어요: ${message}`
         : 'PNG 이미지 생성에 실패했어요.',
-    backupSuccess: 'JSON 백업 파일을 다운로드했어요.',
+    backupSuccess: '모든 보드를 JSON 백업 파일로 다운로드했어요.',
     unsavedChanges: '백업하지 않은 변경 사항이 있어요',
     storageNoticeLabel: '데이터 저장 안내',
     storageNotice:
@@ -230,7 +256,6 @@ export const translations: Record<Language, Translation> = {
     printDate: (date) => `인쇄일 ${date}`,
     printDateBlank: '날짜: ____________',
     moreActions: '더보기',
-    restoreSuccess: 'JSON 백업을 복원했어요.',
     invalidBackup: '지원하지 않는 백업 파일 형식이에요.',
     restoreError: 'JSON 파일을 복원하지 못했어요.',
     samples: '예시 보드',
@@ -240,13 +265,42 @@ export const translations: Record<Language, Translation> = {
     sampleDialogIntro: '예시를 불러와 구조를 살펴보고, 내용을 고쳐 내 보드로 써 보세요.',
     sampleChoiceLabel: '예시 보드 선택',
     sampleProgress: (completed, total) => `실천 ${total}개 중 ${completed}개 완료`,
-    sampleOverwrite: '불러오면 지금 보드의 내용이 예시로 바뀝니다. 불러온 뒤 실행 취소로 되돌릴 수 있어요.',
     sampleEmptyBoard: '빈 보드에 예시 내용을 채웁니다.',
-    sampleBackupHint: '백업하지 않은 변경이 있어요. 불러오기 전에 JSON 백업을 받아 두는 것을 권장합니다.',
-    sampleBackupFirst: '먼저 백업하기',
     sampleLoad: '불러오기',
     cancel: '취소',
     sampleLoaded: (name) => `'${name}' 예시 보드를 불러왔어요. 실행 취소로 이전 보드로 돌아갈 수 있어요.`,
+    boardsOpen: (name) => `보드 목록 열기, 지금 보드: ${name}`,
+    boardsTitle: '내 보드',
+    boardsIntro: (max) => `연도별·주제별로 보드를 나눠 쓸 수 있어요. 최대 ${max}개까지 만들 수 있어요.`,
+    boardListLabel: '보드 목록',
+    boardCount: (count, max) => `${count} / ${max}`,
+    currentBoardBadge: '지금 보드',
+    boardSummary: (progress, date) => `달성률 ${progress}% · ${date} 수정`,
+    newBoard: '새 보드',
+    defaultBoardName: (number) => `보드 ${number}`,
+    copyBoardName: (name) => `${name} 사본`,
+    currentBoardSection: '지금 보드 관리',
+    boardNameLabel: '보드 이름',
+    duplicateBoard: '복제',
+    exportBoard: '이 보드만 백업',
+    deleteBoard: '삭제',
+    deleteBoardConfirm: (name) => `'${name}' 보드를 삭제할까요? 삭제한 보드는 되돌릴 수 없어요.`,
+    lastBoardHint: '보드가 하나뿐이라 삭제할 수 없어요.',
+    boardLimit: (max) => `보드는 최대 ${max}개까지 만들 수 있어요. 쓰지 않는 보드를 삭제해 주세요.`,
+    boardCreated: (name) => `'${name}' 보드를 만들었어요.`,
+    boardDuplicated: (name) => `'${name}' 보드를 만들었어요.`,
+    boardDeleted: (name) => `'${name}' 보드를 삭제했어요.`,
+    boardSwitched: (name) => `'${name}' 보드를 열었어요.`,
+    boardRenamed: (name) => `보드 이름을 '${name}'(으)로 바꿨어요.`,
+    boardBackupSuccess: (name) => `'${name}' 보드를 JSON 파일로 다운로드했어요.`,
+    restoreAllConfirm: (current, incoming) =>
+      `지금 있는 보드 ${current}개를 백업 파일의 보드 ${incoming}개로 바꿀까요? 지금 보드는 모두 사라지고 실행 취소할 수 없어요.`,
+    restoreAllSuccess: (count) => `JSON 백업의 보드 ${count}개를 모두 복원했어요.`,
+    restoreAdded: (name) => `백업 파일의 보드를 '${name}' 새 보드로 추가했어요.`,
+    quotaError:
+      '브라우저 저장 공간이 가득 차서 저장하지 못했어요. 쓰지 않는 보드를 삭제하고, JSON 백업을 받아 두세요.',
+    sampleNewBoard: '예시는 새 보드로 추가돼요. 지금 보드는 그대로 남아요.',
+    sampleAdded: (name) => `'${name}' 예시를 새 보드로 추가했어요.`,
   },
   en: {
     pageTitle: 'NineGrid — 9×9 Mandalart Goal Planner | by VeriQuest',
@@ -257,7 +311,7 @@ export const translations: Record<Language, Translation> = {
     focusMode: 'Focus',
     showAll: 'Show all',
     pngDownload: 'Download board PNG',
-    backupDownload: 'Download JSON backup',
+    backupDownload: 'Download JSON backup (all boards)',
     backupRestore: 'Restore JSON backup',
     backupFile: 'Choose JSON backup file',
     themeToDark: 'Switch to dark theme',
@@ -320,7 +374,7 @@ export const translations: Record<Language, Translation> = {
     footerMessage: 'Small steps add up to meaningful change.',
     footerSupport: 'Buy me a coffee',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: 'Clear every cell and reset to a blank board?',
+    resetConfirm: 'Clear every cell on the current board and reset it to blank? Your other boards stay as they are.',
     resetSuccess: 'The board has been reset to blank.',
     saveError: 'Could not save automatically. Check your browser storage.',
     invalidStorage: 'Saved data is invalid. The default board was opened.',
@@ -329,7 +383,7 @@ export const translations: Record<Language, Translation> = {
     pngSuccess: 'Board PNG downloaded.',
     pngError: (message) =>
       message ? `Could not create PNG: ${message}` : 'Could not create PNG.',
-    backupSuccess: 'JSON backup downloaded.',
+    backupSuccess: 'Downloaded a JSON backup of all boards.',
     unsavedChanges: 'You have changes that are not backed up',
     storageNoticeLabel: 'Data storage notice',
     storageNotice:
@@ -362,7 +416,6 @@ export const translations: Record<Language, Translation> = {
     printDate: (date) => `Printed on ${date}`,
     printDateBlank: 'Date: ____________',
     moreActions: 'More',
-    restoreSuccess: 'JSON backup restored.',
     invalidBackup: 'Unsupported backup file format.',
     restoreError: 'Could not restore the JSON file.',
     samples: 'Sample boards',
@@ -372,13 +425,42 @@ export const translations: Record<Language, Translation> = {
     sampleDialogIntro: 'Load a sample to see how a board fits together, then edit it into your own.',
     sampleChoiceLabel: 'Choose a sample board',
     sampleProgress: (completed, total) => `${completed} of ${total} actions done`,
-    sampleOverwrite: 'Loading replaces everything on your current board. You can undo it afterwards.',
     sampleEmptyBoard: 'The sample will fill your blank board.',
-    sampleBackupHint: 'You have changes that are not backed up. We recommend downloading a JSON backup first.',
-    sampleBackupFirst: 'Back up first',
     sampleLoad: 'Load',
     cancel: 'Cancel',
     sampleLoaded: (name) => `Loaded the "${name}" sample. Use Undo to go back to your previous board.`,
+    boardsOpen: (name) => `Open board list, current board: ${name}`,
+    boardsTitle: 'My boards',
+    boardsIntro: (max) => `Keep separate boards for each year or topic. You can have up to ${max} boards.`,
+    boardListLabel: 'Board list',
+    boardCount: (count, max) => `${count} / ${max}`,
+    currentBoardBadge: 'Current',
+    boardSummary: (progress, date) => `${progress}% done · edited ${date}`,
+    newBoard: 'New board',
+    defaultBoardName: (number) => `Board ${number}`,
+    copyBoardName: (name) => `${name} copy`,
+    currentBoardSection: 'Manage current board',
+    boardNameLabel: 'Board name',
+    duplicateBoard: 'Duplicate',
+    exportBoard: 'Back up this board only',
+    deleteBoard: 'Delete',
+    deleteBoardConfirm: (name) => `Delete the "${name}" board? A deleted board can't be restored.`,
+    lastBoardHint: "This is your only board, so it can't be deleted.",
+    boardLimit: (max) => `You can have up to ${max} boards. Delete a board you no longer use.`,
+    boardCreated: (name) => `Created the "${name}" board.`,
+    boardDuplicated: (name) => `Created the "${name}" board.`,
+    boardDeleted: (name) => `Deleted the "${name}" board.`,
+    boardSwitched: (name) => `Opened the "${name}" board.`,
+    boardRenamed: (name) => `Renamed the board to "${name}".`,
+    boardBackupSuccess: (name) => `Downloaded the "${name}" board as a JSON file.`,
+    restoreAllConfirm: (current, incoming) =>
+      `Replace your ${current} ${current === 1 ? 'board' : 'boards'} with the ${incoming} ${incoming === 1 ? 'board' : 'boards'} in this backup? Your current boards will be removed, and this can't be undone.`,
+    restoreAllSuccess: (count) => `Restored all ${count} ${count === 1 ? 'board' : 'boards'} from the JSON backup.`,
+    restoreAdded: (name) => `Added the backup as a new board, "${name}".`,
+    quotaError:
+      "Couldn't save because browser storage is full. Delete boards you no longer use and download a JSON backup.",
+    sampleNewBoard: 'The sample is added as a new board. Your current board stays as it is.',
+    sampleAdded: (name) => `Added the "${name}" sample as a new board.`,
   },
   ja: {
     pageTitle: 'NineGrid — 9×9 マンダラート目標計画ボード | by VeriQuest',
@@ -389,7 +471,7 @@ export const translations: Record<Language, Translation> = {
     focusMode: 'フォーカス',
     showAll: '全体表示',
     pngDownload: 'ボードをPNGで保存',
-    backupDownload: 'JSONバックアップを保存',
+    backupDownload: 'JSONバックアップを保存（全ボード）',
     backupRestore: 'JSONバックアップを復元',
     backupFile: 'JSONバックアップファイルを選択',
     themeToDark: 'ダークテーマに切り替え',
@@ -451,7 +533,7 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '小さな行動が集まり、大きな変化になります。',
     footerSupport: '開発者にコーヒーを贈る',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: 'すべてのマスを消して空のボードに戻しますか？',
+    resetConfirm: '表示中のボードのマスをすべて消して空に戻しますか？ほかのボードはそのまま残ります。',
     resetSuccess: '空のボードに戻しました。',
     saveError: '自動保存できませんでした。ブラウザーの保存容量を確認してください。',
     invalidStorage: '保存データの形式が正しくないため、初期ボードを開きました。',
@@ -460,7 +542,7 @@ export const translations: Record<Language, Translation> = {
     pngSuccess: 'ボードのPNG画像を保存しました。',
     pngError: (message) =>
       message ? `PNG画像を作成できませんでした: ${message}` : 'PNG画像を作成できませんでした。',
-    backupSuccess: 'JSONバックアップを保存しました。',
+    backupSuccess: 'すべてのボードをJSONバックアップとして保存しました。',
     unsavedChanges: 'バックアップしていない変更があります',
     storageNoticeLabel: 'データ保存のお知らせ',
     storageNotice:
@@ -491,7 +573,6 @@ export const translations: Record<Language, Translation> = {
     printDate: (date) => `印刷日 ${date}`,
     printDateBlank: '日付: ____________',
     moreActions: 'その他',
-    restoreSuccess: 'JSONバックアップを復元しました。',
     invalidBackup: '対応していないバックアップ形式です。',
     restoreError: 'JSONファイルを復元できませんでした。',
     samples: 'サンプルボード',
@@ -501,13 +582,42 @@ export const translations: Record<Language, Translation> = {
     sampleDialogIntro: 'サンプルで全体の構成を確かめ、内容を書き換えて自分のボードにできます。',
     sampleChoiceLabel: 'サンプルボードを選択',
     sampleProgress: (completed, total) => `実践 ${total}件中 ${completed}件完了`,
-    sampleOverwrite: '読み込むと、今のボードの内容がサンプルに置き換わります。読み込んだ後に元に戻すこともできます。',
     sampleEmptyBoard: '空のボードにサンプルの内容を入れます。',
-    sampleBackupHint: 'バックアップしていない変更があります。読み込む前にJSONバックアップをおすすめします。',
-    sampleBackupFirst: '先にバックアップ',
     sampleLoad: '読み込む',
     cancel: 'キャンセル',
     sampleLoaded: (name) => `「${name}」のサンプルを読み込みました。元に戻すで前のボードに戻せます。`,
+    boardsOpen: (name) => `ボード一覧を開く、現在のボード: ${name}`,
+    boardsTitle: 'マイボード',
+    boardsIntro: (max) => `年ごと・テーマごとにボードを分けて使えます。最大${max}個まで作れます。`,
+    boardListLabel: 'ボード一覧',
+    boardCount: (count, max) => `${count} / ${max}`,
+    currentBoardBadge: '表示中',
+    boardSummary: (progress, date) => `達成率 ${progress}% · ${date} 更新`,
+    newBoard: '新しいボード',
+    defaultBoardName: (number) => `ボード ${number}`,
+    copyBoardName: (name) => `${name} のコピー`,
+    currentBoardSection: '表示中のボードを管理',
+    boardNameLabel: 'ボード名',
+    duplicateBoard: '複製',
+    exportBoard: 'このボードだけバックアップ',
+    deleteBoard: '削除',
+    deleteBoardConfirm: (name) => `「${name}」ボードを削除しますか？削除したボードは元に戻せません。`,
+    lastBoardHint: 'ボードが1つしかないため削除できません。',
+    boardLimit: (max) => `ボードは最大${max}個まで作れます。使っていないボードを削除してください。`,
+    boardCreated: (name) => `「${name}」ボードを作成しました。`,
+    boardDuplicated: (name) => `「${name}」ボードを作成しました。`,
+    boardDeleted: (name) => `「${name}」ボードを削除しました。`,
+    boardSwitched: (name) => `「${name}」ボードを開きました。`,
+    boardRenamed: (name) => `ボード名を「${name}」に変更しました。`,
+    boardBackupSuccess: (name) => `「${name}」ボードをJSONファイルでダウンロードしました。`,
+    restoreAllConfirm: (current, incoming) =>
+      `今ある${current}個のボードを、バックアップファイルの${incoming}個のボードに置き換えますか？今のボードはすべて消え、元に戻せません。`,
+    restoreAllSuccess: (count) => `JSONバックアップの${count}個のボードをすべて復元しました。`,
+    restoreAdded: (name) => `バックアップを新しいボード「${name}」として追加しました。`,
+    quotaError:
+      'ブラウザの保存容量がいっぱいで保存できませんでした。使っていないボードを削除し、JSONバックアップを取っておいてください。',
+    sampleNewBoard: 'サンプルは新しいボードとして追加されます。今のボードはそのまま残ります。',
+    sampleAdded: (name) => `「${name}」のサンプルを新しいボードとして追加しました。`,
   },
   zh: {
     pageTitle: 'NineGrid — 9×9 九宫格目标计划看板 | by VeriQuest',
@@ -518,7 +628,7 @@ export const translations: Record<Language, Translation> = {
     focusMode: '专注模式',
     showAll: '显示全部',
     pngDownload: '下载看板 PNG',
-    backupDownload: '下载 JSON 备份',
+    backupDownload: '下载 JSON 备份（全部看板）',
     backupRestore: '恢复 JSON 备份',
     backupFile: '选择 JSON 备份文件',
     themeToDark: '切换到深色主题',
@@ -580,7 +690,7 @@ export const translations: Record<Language, Translation> = {
     footerMessage: '每一小步，都会汇成大改变。',
     footerSupport: '请开发者喝杯咖啡',
     footerBrand: 'NINEGRID · by VERIQUEST',
-    resetConfirm: '要清空所有格子，重置为空白看板吗？',
+    resetConfirm: '要清空当前看板的所有格子，重置为空白看板吗？其他看板保持不变。',
     resetSuccess: '已重置为空白看板。',
     saveError: '自动保存失败，请检查浏览器存储空间。',
     invalidStorage: '保存的数据格式无效，已打开默认看板。',
@@ -589,7 +699,7 @@ export const translations: Record<Language, Translation> = {
     pngSuccess: '看板 PNG 图片已下载。',
     pngError: (message) =>
       message ? `无法生成 PNG 图片：${message}` : '无法生成 PNG 图片。',
-    backupSuccess: 'JSON 备份文件已下载。',
+    backupSuccess: '已下载全部看板的 JSON 备份。',
     unsavedChanges: '有尚未备份的更改',
     storageNoticeLabel: '数据存储提示',
     storageNotice:
@@ -619,7 +729,6 @@ export const translations: Record<Language, Translation> = {
     printDate: (date) => `打印日期 ${date}`,
     printDateBlank: '日期：____________',
     moreActions: '更多',
-    restoreSuccess: 'JSON 备份已恢复。',
     invalidBackup: '不支持此备份文件格式。',
     restoreError: '无法恢复 JSON 文件。',
     samples: '示例看板',
@@ -629,13 +738,41 @@ export const translations: Record<Language, Translation> = {
     sampleDialogIntro: '载入示例了解看板结构，再修改成你自己的看板。',
     sampleChoiceLabel: '选择示例看板',
     sampleProgress: (completed, total) => `${total} 项实践中已完成 ${completed} 项`,
-    sampleOverwrite: '载入后，当前看板的内容会被示例替换。载入后可以撤销。',
     sampleEmptyBoard: '示例内容将填入空白看板。',
-    sampleBackupHint: '有尚未备份的更改。建议载入前先下载 JSON 备份。',
-    sampleBackupFirst: '先备份',
     sampleLoad: '载入',
     cancel: '取消',
     sampleLoaded: (name) => `已载入“${name}”示例。可用撤销回到之前的看板。`,
+    boardsOpen: (name) => `打开看板列表，当前看板：${name}`,
+    boardsTitle: '我的看板',
+    boardsIntro: (max) => `可以按年份或主题分开使用看板，最多可创建 ${max} 个。`,
+    boardListLabel: '看板列表',
+    boardCount: (count, max) => `${count} / ${max}`,
+    currentBoardBadge: '当前',
+    boardSummary: (progress, date) => `达成率 ${progress}% · ${date} 修改`,
+    newBoard: '新建看板',
+    defaultBoardName: (number) => `看板 ${number}`,
+    copyBoardName: (name) => `${name} 副本`,
+    currentBoardSection: '管理当前看板',
+    boardNameLabel: '看板名称',
+    duplicateBoard: '复制',
+    exportBoard: '仅备份此看板',
+    deleteBoard: '删除',
+    deleteBoardConfirm: (name) => `要删除“${name}”看板吗？删除后无法恢复。`,
+    lastBoardHint: '只有一个看板，无法删除。',
+    boardLimit: (max) => `最多可创建 ${max} 个看板。请删除不再使用的看板。`,
+    boardCreated: (name) => `已创建“${name}”看板。`,
+    boardDuplicated: (name) => `已创建“${name}”看板。`,
+    boardDeleted: (name) => `已删除“${name}”看板。`,
+    boardSwitched: (name) => `已打开“${name}”看板。`,
+    boardRenamed: (name) => `看板已重命名为“${name}”。`,
+    boardBackupSuccess: (name) => `已将“${name}”看板下载为 JSON 文件。`,
+    restoreAllConfirm: (current, incoming) =>
+      `要用备份文件中的 ${incoming} 个看板替换现有的 ${current} 个看板吗？现有看板将全部删除，且无法撤销。`,
+    restoreAllSuccess: (count) => `已从 JSON 备份恢复全部 ${count} 个看板。`,
+    restoreAdded: (name) => `已将备份添加为新看板“${name}”。`,
+    quotaError: '浏览器存储空间已满，无法保存。请删除不再使用的看板，并下载 JSON 备份。',
+    sampleNewBoard: '示例将作为新看板添加，当前看板保持不变。',
+    sampleAdded: (name) => `已将“${name}”示例添加为新看板。`,
   },
 }
 

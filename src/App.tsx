@@ -11,6 +11,10 @@ import {
   Focus,
   Info,
   Grid2X2,
+  Copy,
+  Layers,
+  Plus,
+  Trash2,
   LayoutTemplate,
   Link2,
   MonitorDown,
@@ -36,16 +40,36 @@ import {
   getProgress,
   hasText,
   isDetailCell,
-  isPersistedState,
   isRecord,
   isSyncedTitleCell,
   normalizeCells,
-  parseBackup,
   toggleCellDone,
   type BoardCell,
-  type PersistedState,
   type Theme,
 } from './board'
+import {
+  MAX_BOARDS,
+  MAX_BOARD_NAME_LENGTH,
+  anyBoardHasContent,
+  boardAfterDelete,
+  boardsFromBackup,
+  buildBackup,
+  cleanBoardName,
+  createBoard,
+  getCurrentBoard,
+  loadAppData,
+  nextDefaultName,
+  parseBackupFile,
+  replaceBoards,
+  saveBoard,
+  saveIndex,
+  withCells,
+  type AppData,
+  type BoardRecord,
+  type ParsedBackup,
+  type SaveResult,
+  type StorageLike,
+} from './boards'
 import {
   canRedo,
   canUndo,
@@ -54,6 +78,7 @@ import {
   pushHistory,
   redoHistory,
   undoHistory,
+  type History,
 } from './history'
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import { SAMPLE_IDS, getSampleInfo, loadSampleCells, type SampleId } from './samples'
@@ -69,9 +94,8 @@ import {
 import { buildPrintBlocks, getPrintTextSize, type PrintMode } from './print'
 import './App.css'
 
-const STORAGE_KEY = 'ninegrid-board-v1'
+// 보드는 여러 개(#10)를 ninegrid-boards-v2 / ninegrid-board-v2:<id> 키에 저장한다. (src/boards.ts)
 // 백업 알림 상태는 보드 데이터와 분리해 별도 키에 저장한다. (#4)
-// 보드 저장 구조(ninegrid-board-v1)와 백업 파일 형식은 바뀌지 않는다.
 const BACKUP_META_KEY = 'ninegrid-backup-meta-v1'
 const REMINDER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 const CLOCK_TICK_MS = 60 * 60 * 1000
@@ -96,6 +120,7 @@ const REDO_SHORTCUT = IS_APPLE_PLATFORM ? '⇧⌘Z' : 'Ctrl+Y'
 const CHECK_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Enter' : 'Ctrl+Enter'
 // 블록마다 Tab으로 처음 들어가는 칸. 처음에는 블록 가운데(중심 목표, 블록 제목)다. (#9)
 const INITIAL_ACTIVE_CELLS = Array.from({ length: 9 }, (_, block) => getCellIndex(block, 4))
+const EMPTY_HISTORY = createHistory<BoardCell[]>()
 const THEME_COLORS: Record<Theme, string> = {
   light: '#f4f5f1',
   dark: '#171d1b',
@@ -147,9 +172,29 @@ function isBackupMeta(value: unknown): value is BackupMeta {
   )
 }
 
+// localStorage에 접근할 수 없는 환경(일부 사생활 보호 모드 등)에서는 메모리에만 두고 쓴다.
+function getStorage(): StorageLike {
+  try {
+    return window.localStorage
+  } catch {
+    const memory = new Map<string, string>()
+    return {
+      getItem: (key) => memory.get(key) ?? null,
+      setItem: (key, value) => {
+        memory.set(key, value)
+      },
+      removeItem: (key) => {
+        memory.delete(key)
+      },
+    }
+  }
+}
+
+const storage = getStorage()
+
 function saveBackupMeta(meta: BackupMeta) {
   try {
-    localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta))
+    storage.setItem(BACKUP_META_KEY, JSON.stringify(meta))
   } catch {
     // 알림 상태 저장 실패는 보드 사용에 영향이 없으므로 무시한다.
   }
@@ -157,9 +202,9 @@ function saveBackupMeta(meta: BackupMeta) {
 
 // 백업 알림 상태를 읽는다. 이 기능 이전부터 쓰던 사용자는 키가 없으므로,
 // 보드에 내용이 있으면 "아직 백업한 적 없음 + 지금부터 변경 있음"으로 시작한다.
-function readBackupMeta(cells: BoardCell[]): BackupMeta {
+function readBackupMeta(hasContent: boolean): BackupMeta {
   try {
-    const saved = localStorage.getItem(BACKUP_META_KEY)
+    const saved = storage.getItem(BACKUP_META_KEY)
     if (saved !== null) {
       const parsed: unknown = JSON.parse(saved)
       if (isBackupMeta(parsed)) {
@@ -172,7 +217,7 @@ function readBackupMeta(cells: BoardCell[]): BackupMeta {
 
   const meta: BackupMeta = {
     lastBackupAt: null,
-    dirtySince: boardHasContent(cells) ? Date.now() : null,
+    dirtySince: hasContent ? Date.now() : null,
     snoozedUntil: null,
     remindersOff: false,
     storageNoticeSeen: false,
@@ -181,47 +226,35 @@ function readBackupMeta(cells: BoardCell[]): BackupMeta {
   return meta
 }
 
-function readInitialState(): { state: PersistedState; notice: Notice | null } {
-  const language = detectLanguage()
-  const t = getTranslation(language)
+// 저장된 보드 목록을 읽는다. 이전 버전(단일 보드)의 데이터는 첫 번째 보드로 옮긴다. (#10)
+function readInitialState(): { data: AppData; notice: Notice | null } {
+  const detected = detectLanguage()
+  const { data, problem } = loadAppData(
+    storage,
+    detected,
+    getTranslation(detected).defaultBoardName,
+  )
+  const t = getTranslation(data.language)
+  const message =
+    problem === 'invalid'
+      ? t.invalidStorage
+      : problem === 'read'
+        ? t.readStorageError
+        : problem === 'save'
+          ? t.saveError
+          : null
 
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === null) {
-      return {
-        state: { cells: createInitialCells(), theme: 'light', language },
-        notice: null,
-      }
-    }
+  return { data, notice: message === null ? null : { message, kind: 'error' } }
+}
 
-    const parsed: unknown = JSON.parse(saved)
-    if (!isPersistedState(parsed)) {
-      return {
-        state: { cells: createInitialCells(), theme: 'light', language },
-        notice: {
-          message: t.invalidStorage,
-          kind: 'error',
-        },
-      }
-    }
-
-    return {
-      state: {
-        cells: normalizeCells(parsed.cells),
-        theme: parsed.theme,
-        language: isLanguage(parsed.language) ? parsed.language : language,
-      },
-      notice: null,
-    }
-  } catch {
-    return {
-      state: { cells: createInitialCells(), theme: 'light', language },
-      notice: {
-        message: t.readStorageError,
-        kind: 'error',
-      },
-    }
-  }
+// 파일 이름에 붙일 오늘 날짜 (YYYY-MM-DD, 사용자 기기 시간 기준)
+function todayStamp() {
+  const today = new Date()
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-')
 }
 
 function getBlockTitle(cells: BoardCell[], blockIndex: number, language: Language) {
@@ -239,8 +272,10 @@ function getBlockTitle(cells: BoardCell[], blockIndex: number, language: Languag
 
 function App() {
   const [initialState] = useState(readInitialState)
-  const [appState, setAppState] = useState(initialState.state)
-  const { cells, theme, language } = appState
+  const [appData, setAppData] = useState(initialState.data)
+  const { boards, theme, language } = appData
+  const currentBoard = getCurrentBoard(appData)
+  const cells = currentBoard.cells
   const t = getTranslation(language)
   const [notice, setNotice] = useState<Notice | null>(initialState.notice)
   const [focusMode, setFocusMode] = useState(false)
@@ -249,11 +284,12 @@ function App() {
   const boardFrame = useRef<HTMLDivElement>(null)
   const [isExportingPng, setIsExportingPng] = useState(false)
   const [backupMeta, setBackupMeta] = useState(() =>
-    readBackupMeta(initialState.state.cells),
+    readBackupMeta(anyBoardHasContent(initialState.data.boards)),
   )
   const [now, setNow] = useState(() => Date.now())
-  // 보드(cells) 히스토리. 메모리에만 두고 저장하지 않는다. (#5)
-  const [history, setHistory] = useState(createHistory<BoardCell[]>)
+  // 보드(cells) 히스토리. 보드마다 따로 두고(#10), 메모리에만 두고 저장하지 않는다. (#5)
+  const [histories, setHistories] = useState<Record<string, History<BoardCell[]>>>({})
+  const history = histories[currentBoard.id] ?? EMPTY_HISTORY
   // 지금 하나의 기록으로 묶고 있는 입력 칸의 인덱스 (없으면 null)
   const textEditSession = useRef<number | null>(null)
   const textEditTimer = useRef<number | null>(null)
@@ -262,6 +298,15 @@ function App() {
   // 예시 보드 선택/덮어쓰기 확인 대화상자 (#7)
   const sampleDialog = useRef<HTMLDialogElement>(null)
   const [selectedSample, setSelectedSample] = useState<SampleId>(SAMPLE_IDS[0])
+  // 보드 목록 대화상자 (#10)
+  const boardsDialog = useRef<HTMLDialogElement>(null)
+  const boardNameInput = useRef<HTMLInputElement>(null)
+  // 이름 칸에 입력 중인 값. 확정(Enter, 포커스 이동)하기 전에는 보드 이름을 바꾸지 않는다.
+  const [nameDraft, setNameDraft] = useState<string | null>(null)
+  // 대화상자 안에서 스크린 리더에 읽어 줄 안내 (대화상자 밖의 알림 영역은 모달이 열려 있으면 읽히지 않을 수 있다)
+  const [boardsMessage, setBoardsMessage] = useState('')
+  // 렌더링 뒤 포커스를 옮길 대화상자 안의 대상
+  const pendingBoardsFocus = useRef<'name' | string | null>(null)
   // 좁은 화면(760px 이하)의 더보기 메뉴
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenu = useRef<HTMLDivElement>(null)
@@ -285,7 +330,8 @@ function App() {
   })
 
   const hasUnsavedChanges =
-    backupMeta.dirtySince !== null && boardHasContent(cells)
+    backupMeta.dirtySince !== null && anyBoardHasContent(boards)
+  const atBoardLimit = boards.length >= MAX_BOARDS
   const reminderBase = backupMeta.lastBackupAt ?? backupMeta.dirtySince
   const showStorageNotice = !backupMeta.storageNoticeSeen
   const showBackupReminder =
@@ -348,7 +394,8 @@ function App() {
         isTextEntryTarget(event.target) ||
         // 대화상자가 열려 있으면 뒤쪽 보드를 바꾸지 않는다.
         sampleDialog.current?.open ||
-        printDialog.current?.open
+        printDialog.current?.open ||
+        boardsDialog.current?.open
       ) {
         return
       }
@@ -365,17 +412,52 @@ function App() {
     }
   }, [])
 
-  function persistState(nextState: PersistedState) {
-    setAppState(nextState)
-    setNotice(null)
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
-    } catch {
-      showNotice({
-        message: t.saveError,
-        kind: 'error',
-      })
+  function showSaveError(result: SaveResult) {
+    if (!result.ok) {
+      showNotice({ message: result.quota ? t.quotaError : t.saveError, kind: 'error' })
     }
+  }
+
+  // 지금 보드의 칸을 바꾸고 저장한다. 저장에 실패해도 화면의 내용은 유지하고 알린다.
+  function commitCells(nextCells: BoardCell[]) {
+    const board = withCells(currentBoard, nextCells)
+    const next: AppData = {
+      ...appData,
+      boards: boards.map((item) => (item.id === board.id ? board : item)),
+    }
+    setAppData(next)
+    setNotice(null)
+    showSaveError(saveBoard(storage, next, board))
+  }
+
+  // 테마·언어 같은 앱 전체 설정, 보드 이름처럼 목록에만 있는 값을 저장한다.
+  function commitIndex(next: AppData) {
+    setAppData(next)
+    showSaveError(saveIndex(storage, next))
+  }
+
+  // 보드를 추가·삭제하거나 통째로 바꾼다. 저장하지 못하면(용량 초과 등) 화면도 바꾸지 않고 false를 돌려준다.
+  function commitBoards(next: AppData) {
+    const result = replaceBoards(storage, appData, next)
+    if (!result.ok) {
+      const message = result.quota ? t.quotaError : t.saveError
+      showNotice({ message, kind: 'error' })
+      setBoardsMessage(message)
+      return false
+    }
+    setAppData(next)
+    return true
+  }
+
+  function updateHistory(
+    update: History<BoardCell[]> | ((current: History<BoardCell[]>) => History<BoardCell[]>),
+    boardId = currentBoard.id,
+  ) {
+    setHistories((current) => ({
+      ...current,
+      [boardId]:
+        typeof update === 'function' ? update(current[boardId] ?? EMPTY_HISTORY) : update,
+    }))
   }
 
   // 화면 알림을 띄운다. 이전 달성률 안내는 지워서, 알림이 사라질 때 다시 읽히지 않게 한다.
@@ -400,6 +482,8 @@ function App() {
   }
 
   function markBackedUp() {
+    // 백업·복원 버튼을 눌렀을 때만 불린다. (린트가 렌더링 중 호출로 잘못 판단해 끈다)
+    // oxlint-disable-next-line react/purity
     const timestamp = Date.now()
     setNow(timestamp)
     updateBackupMeta((meta) => ({
@@ -432,7 +516,7 @@ function App() {
   // 입력 묶음을 끝낸다. 입력했다가 원래대로 되돌렸다면 빈 기록을 지운다.
   function endTextEditSession() {
     if (clearTextEditSession()) {
-      setHistory((current) =>
+      updateHistory((current) =>
         dropUnchangedEntry(current, latestCells.current, cellsEqual),
       )
     }
@@ -440,7 +524,7 @@ function App() {
 
   // 보드가 바뀌기 직전 상태를 기록한다. (새 작업이므로 Redo 기록은 사라진다)
   function recordChange(before: BoardCell[]) {
-    setHistory((current) => pushHistory(current, before))
+    updateHistory((current) => pushHistory(current, before))
   }
 
   function stepHistory(direction: 'undo' | 'redo') {
@@ -450,13 +534,13 @@ function App() {
     const result =
       direction === 'undo' ? undoHistory(base, cells) : redoHistory(base, cells)
     if (result === null) {
-      setHistory(base)
+      updateHistory(base)
       return
     }
 
-    setHistory(result.history)
+    updateHistory(result.history)
     // 기록된 보드도 현재 규칙으로 정리해 빈 칸이 체크된 채 남지 않게 한다.
-    persistState({ cells: normalizeCells(result.value), theme, language })
+    commitCells(normalizeCells(result.value))
     // Undo/Redo도 보드 변경이므로 백업 알림에 반영한다. (#4)
     markEdited()
   }
@@ -476,7 +560,7 @@ function App() {
     }
     textEditTimer.current = window.setTimeout(endTextEditSession, TEXT_EDIT_IDLE_MS)
 
-    persistState({ cells: applyTextEdit(cells, index, text), theme, language })
+    commitCells(applyTextEdit(cells, index, text))
     markEdited()
   }
 
@@ -488,7 +572,7 @@ function App() {
 
     endTextEditSession()
     recordChange(cells)
-    persistState({ cells: next, theme, language })
+    commitCells(next)
     markEdited()
     // 달성률 변화를 스크린 리더에 알린다. (#9)
     const nextProgress = getProgress(next)
@@ -604,9 +688,11 @@ function App() {
     if (!cellsEqual(cells, emptyCells)) {
       recordChange(cells)
     }
-    persistState({ cells: emptyCells, theme, language })
-    // 빈 보드는 잃을 내용이 없으므로 "백업하지 않은 변경"을 해제한다.
-    updateBackupMeta((meta) => ({ ...meta, dirtySince: null }))
+    commitCells(emptyCells)
+    // 모든 보드가 비었으면 잃을 내용이 없으므로 "백업하지 않은 변경"을 해제한다.
+    if (!anyBoardHasContent(boards.filter((board) => board.id !== currentBoard.id))) {
+      updateBackupMeta((meta) => ({ ...meta, dirtySince: null }))
+    }
     setSelectedBlock(4)
     setFocusMode(false)
     showNotice({ message: t.resetSuccess, kind: 'success' })
@@ -726,53 +812,74 @@ function App() {
     window.requestAnimationFrame(() => window.print())
   }
 
-  // 예시 보드를 불러온다. 보드 전체를 바꾸는 다른 작업(초기화, 백업 복원)처럼
-  // 직전 보드를 Undo 히스토리에 기록하므로, 불러온 뒤 실행 취소로 되돌릴 수 있다. (#5, #7)
+  // 예시 보드를 불러온다. (#7, #10)
+  // - 지금 보드가 비어 있으면 그 보드에 채운다. 직전 보드를 Undo 히스토리에 기록하므로 실행 취소로 되돌릴 수 있다. (#5)
+  // - 내용이 있으면 덮어쓰지 않고 예시 이름의 새 보드로 추가한다.
   function loadSample() {
     const sampleCells = loadSampleCells(selectedSample, language)
     if (sampleCells === null) {
       return
     }
+    const sampleName = getSampleInfo(selectedSample, language).name
 
     endTextEditSession()
-    if (!cellsEqual(cells, sampleCells)) {
-      recordChange(cells)
+    if (!boardHasContent(cells)) {
+      if (!cellsEqual(cells, sampleCells)) {
+        recordChange(cells)
+      }
+      // 테마와 언어는 사용자가 쓰던 설정을 그대로 둔다.
+      commitCells(sampleCells)
+    } else {
+      if (atBoardLimit) {
+        return
+      }
+      const board = createBoard(sampleName, sampleCells)
+      if (
+        !commitBoards({ ...appData, boards: [...boards, board], currentBoardId: board.id })
+      ) {
+        closeSampleDialog()
+        return
+      }
     }
-    // 테마와 언어는 사용자가 쓰던 설정을 그대로 둔다.
-    persistState({ cells: sampleCells, theme, language })
     // 예시 내용은 아직 백업되지 않았으므로 백업 알림에 반영한다. (#4)
     markEdited()
-    setSelectedBlock(4)
-    setFocusMode(false)
+    resetView()
     closeSampleDialog()
     showNotice({
-      message: t.sampleLoaded(getSampleInfo(selectedSample, language).name),
+      message: boardHasContent(cells) ? t.sampleAdded(sampleName) : t.sampleLoaded(sampleName),
       kind: 'success',
     })
   }
 
-  function downloadBackup() {
-    const backup = {
-      format: 'ninegrid-backup',
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      cells,
-      theme,
-      language,
-    }
-    const file = new Blob([JSON.stringify(backup, null, 2)], {
+  function downloadJson(content: unknown, fileName: string) {
+    const file = new Blob([JSON.stringify(content, null, 2)], {
       type: 'application/json',
     })
     const url = URL.createObjectURL(file)
     const link = document.createElement('a')
     link.href = url
-    link.download = `ninegrid-backup-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.append(link)
+    link.download = fileName
+    // 모달 대화상자가 열려 있으면 바깥(body)은 비활성(inert)이라 파일 이름이 무시될 수 있어 대화상자 안에 붙인다.
+    const container = document.querySelector('dialog[open]') ?? document.body
+    container.append(link)
     link.click()
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  // 전체 보드 백업. 백업 알림(#4)은 모든 보드를 받았을 때만 "백업됨"으로 본다.
+  function downloadBackup() {
+    downloadJson(buildBackup(appData, 'all'), `ninegrid-backup-${todayStamp()}.json`)
     markBackedUp()
     showNotice({ message: t.backupSuccess, kind: 'success' })
+  }
+
+  // 지금 보드 1개만 백업한다. 다른 보드는 백업되지 않았으므로 백업 알림 상태는 그대로 둔다.
+  function downloadCurrentBoardBackup() {
+    downloadJson(buildBackup(appData, 'board'), `ninegrid-board-${todayStamp()}.json`)
+    const message = t.boardBackupSuccess(currentBoard.name)
+    showNotice({ message, kind: 'success' })
+    setBoardsMessage(message)
   }
 
   async function downloadBoardPng() {
@@ -802,13 +909,7 @@ function App() {
         throw new Error('The browser did not create a PNG image.')
       }
 
-      const now = new Date()
-      const date = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, '0'),
-        String(now.getDate()).padStart(2, '0'),
-      ].join('-')
-      const file = new File([blob], `ninegrid-${date}.png`, {
+      const file = new File([blob], `ninegrid-${todayStamp()}.png`, {
         type: 'image/png',
       })
       const isMobileOrTablet =
@@ -874,48 +975,211 @@ function App() {
     setSelectedBlock((current) => (current + offset + 9) % 9)
   }
 
+  // JSON 백업 복원 (#10)
+  // - 전체 보드 백업: 확인을 받은 뒤 지금 보드 목록을 백업의 보드로 모두 바꾼다. 테마·언어도 백업을 따른다.
+  // - 보드 1개 백업(이전 버전 백업 포함): 지금 보드를 덮어쓰지 않고 새 보드로 추가한다.
   async function restoreBackup(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const input = event.target
+    const file = input.files?.[0]
     if (!file) {
       return
     }
 
+    let backup: ParsedBackup | null = null
     try {
-      const backup = parseBackup(JSON.parse(await file.text()))
-      if (backup === null) {
-        throw new Error(t.invalidBackup)
-      }
+      backup = parseBackupFile(JSON.parse(await file.text()))
+    } catch {
+      // 아래에서 형식 오류로 알린다.
+    }
+    input.value = ''
+    if (backup === null) {
+      showNotice({ message: t.invalidBackup, kind: 'error' })
+      return
+    }
+    applyBackup(backup)
+  }
 
-      const restoredLanguage = backup.language ?? language
-      endTextEditSession()
-      if (!cellsEqual(cells, backup.cells)) {
-        recordChange(cells)
+  function applyBackup(backup: ParsedBackup) {
+    endTextEditSession()
+    if (backup.scope === 'all') {
+      if (!window.confirm(t.restoreAllConfirm(boards.length, backup.boards.length))) {
+        return
       }
-      persistState({
-        cells: backup.cells,
-        theme: backup.theme,
+      const restored = boardsFromBackup(backup, boards, t.defaultBoardName)
+      const restoredLanguage = backup.language ?? language
+      const restoredData: AppData = {
+        boards: restored,
+        currentBoardId: restored[backup.currentIndex]?.id ?? restored[0].id,
+        theme: backup.theme ?? theme,
         language: restoredLanguage,
-      })
+      }
+      if (!commitBoards(restoredData)) {
+        return
+      }
+      // 이전 보드의 실행 취소 기록은 더 쓸 수 없으므로 지운다.
+      setHistories({})
       // 복원한 보드는 백업 파일과 같으므로 백업된 상태로 본다.
       markBackedUp()
-      setSelectedBlock(4)
-      setFocusMode(false)
+      resetView()
       showNotice({
-        message: getTranslation(restoredLanguage).restoreSuccess,
+        message: getTranslation(restoredLanguage).restoreAllSuccess(restored.length),
         kind: 'success',
       })
-    } catch (error) {
-      showNotice({
-        message:
-          error instanceof Error
-            ? error.message
-            : t.restoreError,
-        kind: 'error',
-      })
-    } finally {
-      event.target.value = ''
+      return
+    }
+
+    if (boards.length + backup.boards.length > MAX_BOARDS) {
+      showNotice({ message: t.boardLimit(MAX_BOARDS), kind: 'error' })
+      return
+    }
+    const added = boardsFromBackup(backup, boards, t.defaultBoardName)
+    if (!commitBoards({ ...appData, boards: [...boards, ...added], currentBoardId: added[0].id })) {
+      return
+    }
+    resetView()
+    showNotice({ message: t.restoreAdded(added[0].name), kind: 'success' })
+  }
+
+  // 보드를 바꾸거나 새로 열 때 보기 상태를 처음으로 되돌린다.
+  function resetView() {
+    setSelectedBlock(4)
+    setFocusMode(false)
+    setActiveCells(INITIAL_ACTIVE_CELLS)
+  }
+
+  // ---- 여러 보드 (#10) ----
+
+  function openBoardsDialog() {
+    endTextEditSession()
+    setBoardsMessage('')
+    openDialog(boardsDialog.current)
+    // 열면 지금 보드 항목에 포커스를 둔다. 방향을 잃지 않고 바로 다른 보드로 Tab 이동할 수 있다.
+    boardsDialog.current
+      ?.querySelector<HTMLButtonElement>(`[data-board-id="${CSS.escape(currentBoard.id)}"]`)
+      ?.focus()
+  }
+
+  function closeBoardsDialog() {
+    boardsDialog.current?.close()
+  }
+
+  // 보드를 전환한다. 칸은 고칠 때마다 저장되므로 전환 전에 따로 저장할 내용은 없다.
+  // 입력 묶음만 끝내서 Undo 기록이 다른 보드로 넘어가지 않게 한다.
+  function switchBoard(id: string) {
+    if (id !== currentBoard.id) {
+      endTextEditSession()
+      const target = boards.find((board) => board.id === id)
+      commitIndex({ ...appData, currentBoardId: id })
+      resetView()
+      if (target) {
+        showNotice({ message: t.boardSwitched(target.name), kind: 'success' })
+      }
+    }
+    closeBoardsDialog()
+  }
+
+  // 새 보드나 복제한 보드를 목록에 넣고 연다. 대화상자는 열어 둔 채 이름 칸에 포커스를 둔다.
+  function addBoard(board: BoardRecord, message: string) {
+    endTextEditSession()
+    const index = boards.findIndex((item) => item.id === currentBoard.id)
+    const nextBoards = [...boards]
+    nextBoards.splice(index + 1, 0, board)
+    if (!commitBoards({ ...appData, boards: nextBoards, currentBoardId: board.id })) {
+      return false
+    }
+    resetView()
+    setBoardsMessage(message)
+    setNotice({ message, kind: 'success' })
+    pendingBoardsFocus.current = 'name'
+    return true
+  }
+
+  function createNewBoard() {
+    if (atBoardLimit) {
+      return
+    }
+    const name = nextDefaultName(boards, t.defaultBoardName)
+    addBoard(createBoard(name, createInitialCells()), t.boardCreated(name))
+  }
+
+  function duplicateCurrentBoard() {
+    if (atBoardLimit) {
+      return
+    }
+    const name = cleanBoardName(t.copyBoardName(currentBoard.name))
+    const copy = createBoard(
+      name,
+      cells.map((cell) => ({ ...cell })),
+    )
+    // 복제본은 아직 백업에 없으므로 내용이 있으면 백업 알림에 반영한다. (#4)
+    if (addBoard(copy, t.boardDuplicated(name)) && boardHasContent(cells)) {
+      markEdited()
     }
   }
+
+  function renameCurrentBoard() {
+    const name = cleanBoardName(nameDraft ?? '')
+    setNameDraft(null)
+    if (name === '' || name === currentBoard.name) {
+      return
+    }
+    commitIndex({
+      ...appData,
+      boards: boards.map((board) =>
+        board.id === currentBoard.id ? { ...board, name, updatedAt: Date.now() } : board,
+      ),
+    })
+    markEdited()
+    setBoardsMessage(t.boardRenamed(name))
+  }
+
+  function deleteCurrentBoard() {
+    if (boards.length <= 1 || !window.confirm(t.deleteBoardConfirm(currentBoard.name))) {
+      return
+    }
+    endTextEditSession()
+    const deleted = currentBoard
+    const nextId = boardAfterDelete(boards, deleted.id)
+    if (nextId === null) {
+      return
+    }
+    if (
+      !commitBoards({
+        ...appData,
+        boards: boards.filter((board) => board.id !== deleted.id),
+        currentBoardId: nextId,
+      })
+    ) {
+      return
+    }
+    setHistories((current) => {
+      const next = { ...current }
+      delete next[deleted.id]
+      return next
+    })
+    resetView()
+    const message = t.boardDeleted(deleted.name)
+    setBoardsMessage(message)
+    setNotice({ message, kind: 'success' })
+    // 지운 보드 자리 대신 지금 열린 보드의 목록 항목으로 포커스를 옮긴다.
+    pendingBoardsFocus.current = nextId
+  }
+
+  useEffect(() => {
+    const target = pendingBoardsFocus.current
+    if (target === null) {
+      return
+    }
+    pendingBoardsFocus.current = null
+    if (target === 'name') {
+      boardNameInput.current?.focus()
+      boardNameInput.current?.select()
+    } else {
+      boardsDialog.current
+        ?.querySelector<HTMLButtonElement>(`[data-board-id="${CSS.escape(target)}"]`)
+        ?.focus()
+    }
+  })
 
   function renderCell(index: number) {
     const cell = cells[index]
@@ -1240,11 +1504,7 @@ function App() {
             aria-label={theme === 'light' ? t.themeToDark : t.themeToLight}
             className="icon-button"
             onClick={() =>
-              persistState({
-                cells,
-                theme: theme === 'light' ? 'dark' : 'light',
-                language,
-              })
+              commitIndex({ ...appData, theme: theme === 'light' ? 'dark' : 'light' })
             }
             title={theme === 'light' ? t.themeToDark : t.themeToLight}
             type="button"
@@ -1261,11 +1521,7 @@ function App() {
               aria-label={t.languageLabel}
               onChange={(event) => {
                 if (isLanguage(event.target.value)) {
-                  persistState({
-                    cells,
-                    theme,
-                    language: event.target.value,
-                  })
+                  commitIndex({ ...appData, language: event.target.value })
                 }
               }}
               value={language}
@@ -1441,6 +1697,24 @@ function App() {
           </section>
         )
       )}
+
+      <nav aria-label={t.boardListLabel} className="board-switcher">
+        <button
+          aria-haspopup="dialog"
+          aria-label={t.boardsOpen(currentBoard.name)}
+          className="board-switcher__button"
+          onClick={openBoardsDialog}
+          title={t.boardsTitle}
+          type="button"
+        >
+          <Layers aria-hidden="true" size={16} />
+          <span className="board-switcher__name">{currentBoard.name}</span>
+          <ChevronDown aria-hidden="true" size={14} />
+        </button>
+        <span aria-hidden="true" className="board-switcher__count">
+          {t.boardCount(boards.length, MAX_BOARDS)}
+        </span>
+      </nav>
 
       <section aria-label={t.progressLabel} className="overview">
         <div className="overview__intro">
@@ -1655,35 +1929,27 @@ function App() {
             })}
           </fieldset>
 
-          {boardHasContent(cells) ? (
-            <div className="sample-dialog__warning" role="note">
+          {!boardHasContent(cells) ? (
+            <p className="sample-dialog__note">{t.sampleEmptyBoard}</p>
+          ) : atBoardLimit ? (
+            <div className="sample-dialog__warning" id="sample-limit" role="note">
               <Info aria-hidden="true" size={15} />
-              <div>
-                <p>{t.sampleOverwrite}</p>
-                {hasUnsavedChanges && (
-                  <p className="sample-dialog__backup">
-                    {t.sampleBackupHint}
-                    <button
-                      className="banner-button"
-                      onClick={downloadBackup}
-                      type="button"
-                    >
-                      <Download aria-hidden="true" size={13} />
-                      {t.sampleBackupFirst}
-                    </button>
-                  </p>
-                )}
-              </div>
+              <p>{t.boardLimit(MAX_BOARDS)}</p>
             </div>
           ) : (
-            <p className="sample-dialog__note">{t.sampleEmptyBoard}</p>
+            <p className="sample-dialog__note">{t.sampleNewBoard}</p>
           )}
 
           <div className="sample-dialog__actions">
             <button className="banner-button" onClick={closeSampleDialog} type="button">
               {t.cancel}
             </button>
-            <button className="banner-button banner-button--primary" type="submit">
+            <button
+              aria-describedby={boardHasContent(cells) && atBoardLimit ? 'sample-limit' : undefined}
+              className="banner-button banner-button--primary"
+              disabled={boardHasContent(cells) && atBoardLimit}
+              type="submit"
+            >
               {t.sampleLoad}
             </button>
           </div>
@@ -1764,6 +2030,145 @@ function App() {
             </button>
           </div>
         </form>
+      </dialog>
+
+      {/* 보드 목록: 보드 전환, 새 보드, 이름 변경, 복제, 보드 1개 백업, 삭제 (#10) */}
+      {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+      <dialog
+        aria-describedby="boards-dialog-intro"
+        aria-labelledby="boards-dialog-title"
+        className="sample-dialog boards-dialog"
+        onClose={restoreDialogFocus}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            closeBoardsDialog()
+          }
+        }}
+        ref={boardsDialog}
+      >
+        <div className="sample-dialog__body">
+          <div className="sample-dialog__header">
+            <h2 id="boards-dialog-title">
+              {t.boardsTitle}{' '}
+              <span className="boards-dialog__count">{t.boardCount(boards.length, MAX_BOARDS)}</span>
+            </h2>
+            <button
+              aria-label={t.cancel}
+              className="sample-dialog__close"
+              onClick={closeBoardsDialog}
+              title={t.cancel}
+              type="button"
+            >
+              <X aria-hidden="true" size={16} />
+            </button>
+          </div>
+          <p className="sample-dialog__intro" id="boards-dialog-intro">
+            {t.boardsIntro(MAX_BOARDS)}
+          </p>
+
+          <button
+            aria-describedby={atBoardLimit ? 'boards-limit' : undefined}
+            className="banner-button banner-button--primary boards-dialog__new"
+            disabled={atBoardLimit}
+            onClick={createNewBoard}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={15} />
+            {t.newBoard}
+          </button>
+          {atBoardLimit && (
+            <p className="sample-dialog__note" id="boards-limit">
+              {t.boardLimit(MAX_BOARDS)}
+            </p>
+          )}
+
+          <ul aria-label={t.boardListLabel} className="board-list">
+            {boards.map((board) => {
+              const isCurrent = board.id === currentBoard.id
+              const updatedOn = new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : language, {
+                dateStyle: 'medium',
+              }).format(new Date(board.updatedAt))
+              return (
+                <li key={board.id}>
+                  <button
+                    aria-current={isCurrent ? 'true' : undefined}
+                    className={`board-list__item ${isCurrent ? 'is-current' : ''}`}
+                    data-board-id={board.id}
+                    onClick={() => switchBoard(board.id)}
+                    type="button"
+                  >
+                    <span className="board-list__name">{board.name}</span>
+                    {isCurrent && (
+                      <span aria-hidden="true" className="board-list__badge">
+                        {t.currentBoardBadge}
+                      </span>
+                    )}
+                    <span className="board-list__summary">
+                      {t.boardSummary(getProgress(board.cells).progress, updatedOn)}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+
+          <section aria-labelledby="boards-current-title" className="boards-dialog__current">
+            <h3 id="boards-current-title">{t.currentBoardSection}</h3>
+            <label className="boards-dialog__field">
+              <span>{t.boardNameLabel}</span>
+              <input
+                maxLength={MAX_BOARD_NAME_LENGTH}
+                onBlur={renameCurrentBoard}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    renameCurrentBoard()
+                  }
+                }}
+                ref={boardNameInput}
+                type="text"
+                value={nameDraft ?? currentBoard.name}
+              />
+            </label>
+            <div className="boards-dialog__actions">
+              <button
+                aria-describedby={atBoardLimit ? 'boards-limit' : undefined}
+                className="banner-button"
+                disabled={atBoardLimit}
+                onClick={duplicateCurrentBoard}
+                type="button"
+              >
+                <Copy aria-hidden="true" size={14} />
+                {t.duplicateBoard}
+              </button>
+              <button className="banner-button" onClick={downloadCurrentBoardBackup} type="button">
+                <Download aria-hidden="true" size={14} />
+                {t.exportBoard}
+              </button>
+              <button
+                aria-describedby={boards.length <= 1 ? 'boards-last' : undefined}
+                className="banner-button banner-button--danger"
+                disabled={boards.length <= 1}
+                onClick={deleteCurrentBoard}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={14} />
+                {t.deleteBoard}
+              </button>
+            </div>
+            {boards.length <= 1 && (
+              <p className="sample-dialog__note" id="boards-last">
+                {t.lastBoardHint}
+              </p>
+            )}
+          </section>
+
+          <p className="visually-hidden" role="status">
+            {boardsMessage}
+          </p>
+        </div>
       </dialog>
 
       {renderPrintSheet()}

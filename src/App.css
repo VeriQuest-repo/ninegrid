@@ -12,6 +12,9 @@
   --accent-strong: #326858;
   --accent-soft: #e6f1ec;
   --on-accent: #ffffff;
+  /* 삭제처럼 되돌릴 수 없는 동작 (#10) */
+  --danger: #a4503f;
+  --danger-soft: #f8ebe7;
   /* 키보드 포커스 표시 (#9) */
   --focus-ring: #3f7262;
   --goal: #f1e5c9;
@@ -43,6 +46,8 @@
   --accent-soft: #2b4037;
   /* 밝은 초록 배경 위 글자는 어둡게 써야 대비가 나온다. (#9) */
   --on-accent: #12231c;
+  --danger: #e59a89;
+  --danger-soft: #3d2924;
   --focus-ring: #9dcbb8;
   --goal: #493f2c;
   --goal-ink: #e1ca8f;
@@ -335,6 +340,201 @@ button {
   border-color: transparent;
   color: var(--muted);
   background: transparent;
+}
+
+.banner-button--danger {
+  color: var(--danger);
+}
+
+.banner-button--danger:hover {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.banner-button:disabled {
+  border-color: var(--line);
+  color: var(--faint);
+  background: var(--surface-soft);
+  cursor: not-allowed;
+}
+
+/* 보드 전환 버튼 (#10) */
+.board-switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 14px;
+}
+
+.board-switcher__button {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color 140ms ease;
+}
+
+.board-switcher__button:hover {
+  border-color: var(--accent);
+}
+
+.board-switcher__button > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.board-switcher__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-switcher__count {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 보드 목록 대화상자 (#10) */
+.boards-dialog__count {
+  color: var(--faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.boards-dialog__new,
+.boards-dialog__actions .banner-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.boards-dialog__new {
+  height: 36px;
+  font-size: 13px;
+}
+
+.board-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-list__item {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.board-list__item:hover {
+  border-color: var(--line-strong);
+}
+
+.board-list__item.is-current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.board-list__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-list__badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.board-list__summary {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.boards-dialog__current {
+  display: grid;
+  gap: 9px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.boards-dialog__current h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.boards-dialog__field {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.boards-dialog__field input {
+  height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.boards-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.boards-dialog__actions .banner-button {
+  height: 34px;
+}
+
+@media (pointer: coarse) {
+  .boards-dialog__actions .banner-button,
+  .boards-dialog__new {
+    height: 44px;
+  }
 }
 
 /* 빈 보드일 때 보이는 예시 보드 진입점 (#7) */
@@ -1851,4 +2051,9 @@ button {
     text-align: right;
     letter-spacing: 0.08em;
   }
+}
+
+.boards-dialog__field input:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
 }
