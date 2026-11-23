@@ -3,14 +3,17 @@
   --surface: #ffffff;
   --surface-soft: #fafbf9;
   --ink: #29332f;
-  --muted: #78827d;
-  --faint: #a4aca7;
+  /* 글자 색 대비 4.5:1 이상 (#9) */
+  --muted: #5c6661;
+  --faint: #646e69;
   --line: #e5e9e5;
   --line-strong: #d3ddd7;
-  --accent: #477d6c;
+  --accent: #3f7262;
   --accent-strong: #326858;
   --accent-soft: #e6f1ec;
   --on-accent: #ffffff;
+  /* 키보드 포커스 표시 (#9) */
+  --focus-ring: #3f7262;
   --goal: #f1e5c9;
   --goal-ink: #765d2b;
   --sync: #f1f5f2;
@@ -32,13 +35,15 @@
   --surface-soft: #242d29;
   --ink: #e7eee9;
   --muted: #a7b3ac;
-  --faint: #829087;
+  --faint: #9eaca3;
   --line: #35413b;
   --line-strong: #46564d;
   --accent: #86b7a4;
   --accent-strong: #9dcbb8;
   --accent-soft: #2b4037;
-  --on-accent: #ffffff;
+  /* 밝은 초록 배경 위 글자는 어둡게 써야 대비가 나온다. (#9) */
+  --on-accent: #12231c;
+  --focus-ring: #9dcbb8;
   --goal: #493f2c;
   --goal-ink: #e1ca8f;
   --sync: #27322d;
@@ -167,12 +172,8 @@ button {
 
 .toolbar-button--focus.is-active {
   border-color: var(--accent);
-  color: white;
+  color: var(--on-accent);
   background: var(--accent-strong);
-}
-
-:root[data-theme="dark"] .toolbar-button--focus.is-active {
-  color: #18251f;
 }
 
 .icon-button {
@@ -909,16 +910,23 @@ button {
 
 .mandala-cell__input::placeholder {
   color: var(--faint);
-  opacity: 0.85;
+  opacity: 1;
 }
 
-.mandala-cell__input:disabled::placeholder {
+/* 입력창은 outline을 끄므로 칸 전체에 포커스 표시를 그린다. (#9) */
+.mandala-cell:has(.mandala-cell__input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.mandala-cell__input:read-only::placeholder {
   color: var(--faint);
   opacity: 0.85;
   -webkit-text-fill-color: var(--faint);
 }
 
-.mandala-cell__input:disabled {
+.mandala-cell__input:read-only {
+  cursor: default;
   color: var(--accent-strong);
   opacity: 0.9;
   -webkit-text-fill-color: var(--accent-strong);
@@ -1078,6 +1086,56 @@ button {
 .footer-brand span {
   padding: 0 3px;
   color: var(--accent);
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 50;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+.board-keyboard-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: center;
+}
+
+/* 키보드가 없는 휴대폰·태블릿 폭에서는 안내를 화면에서만 숨긴다. (스크린 리더는 그대로 읽는다) */
+@media (max-width: 760px), (pointer: coarse) {
+  .board-keyboard-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 전환 효과를 끈다. (#9) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .visually-hidden {

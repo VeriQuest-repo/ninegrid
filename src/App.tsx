@@ -58,6 +58,14 @@ import {
 import { detectLanguage, getTranslation, isLanguage, type Language } from './i18n'
 import { SAMPLE_IDS, getSampleInfo, loadSampleCells, type SampleId } from './samples'
 import { usePwa } from './pwa'
+import {
+  getBlockIndex,
+  getCellIndex,
+  getCellNumber,
+  getNeighborCell,
+  isArrowKey,
+  shouldLeaveCell,
+} from './keyboard'
 import { buildPrintBlocks, getPrintTextSize, type PrintMode } from './print'
 import './App.css'
 
@@ -84,6 +92,10 @@ const IS_APPLE_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
 const UNDO_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Z' : 'Ctrl+Z'
 const REDO_SHORTCUT = IS_APPLE_PLATFORM ? '⇧⌘Z' : 'Ctrl+Y'
+// 실천 칸에서 완료 체크를 바꾸는 단축키 (#9)
+const CHECK_SHORTCUT = IS_APPLE_PLATFORM ? '⌘Enter' : 'Ctrl+Enter'
+// 블록마다 Tab으로 처음 들어가는 칸. 처음에는 블록 가운데(중심 목표, 블록 제목)다. (#9)
+const INITIAL_ACTIVE_CELLS = Array.from({ length: 9 }, (_, block) => getCellIndex(block, 4))
 const THEME_COLORS: Record<Theme, string> = {
   light: '#f4f5f1',
   dark: '#171d1b',
@@ -258,8 +270,18 @@ function App() {
   const printDialog = useRef<HTMLDialogElement>(null)
   const [printMode, setPrintMode] = useState<PrintMode>('current')
   // 홈 화면 설치와 새 버전 안내 (#6)
+  // 블록마다 Tab으로 들어갈 칸(roving tabindex). 방향키로 옮기면 그 칸을 기억한다. (#9)
+  const [activeCells, setActiveCells] = useState(INITIAL_ACTIVE_CELLS)
+  // 렌더링 뒤 포커스를 옮길 칸 (포커스 모드로 들어갈 때 등)
+  const pendingCellFocus = useRef<number | null>(null)
+  // 완료 체크를 바꿨을 때 스크린 리더에 읽어 줄 달성률
+  const [progressAnnouncement, setProgressAnnouncement] = useState('')
+  // 대화상자를 연 버튼. 닫히면 그 버튼으로 포커스를 돌려준다.
+  const dialogOpener = useRef<HTMLElement | null>(null)
+  // 더보기 버튼에서 위 화살표로 열면 마지막 항목에 포커스를 둔다.
+  const moreFocusLast = useRef(false)
   const pwa = usePwa({
-    onOfflineReady: () => setNotice({ message: t.offlineReady, kind: 'success' }),
+    onOfflineReady: () => showNotice({ message: t.offlineReady, kind: 'success' }),
   })
 
   const hasUnsavedChanges =
@@ -349,11 +371,17 @@ function App() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
     } catch {
-      setNotice({
+      showNotice({
         message: t.saveError,
         kind: 'error',
       })
     }
+  }
+
+  // 화면 알림을 띄운다. 이전 달성률 안내는 지워서, 알림이 사라질 때 다시 읽히지 않게 한다.
+  function showNotice(next: Notice) {
+    setNotice(next)
+    setProgressAnnouncement('')
   }
 
   function updateBackupMeta(update: (meta: BackupMeta) => BackupMeta) {
@@ -462,6 +490,108 @@ function App() {
     recordChange(cells)
     persistState({ cells: next, theme, language })
     markEdited()
+    // 달성률 변화를 스크린 리더에 알린다. (#9)
+    const nextProgress = getProgress(next)
+    setProgressAnnouncement(
+      `${t.progressLabel} ${nextProgress.progress}%, ${t.completedCount(
+        nextProgress.completedCount,
+        nextProgress.writtenCount,
+      )}`,
+    )
+  }
+
+  function focusCell(index: number) {
+    boardFrame.current
+      ?.querySelector<HTMLTextAreaElement>(`[data-cell="${index}"]`)
+      ?.focus()
+  }
+
+  // 포커스 모드로 들어간 뒤처럼, 다시 그려진 칸에 포커스를 옮긴다.
+  useEffect(() => {
+    if (pendingCellFocus.current !== null) {
+      focusCell(pendingCellFocus.current)
+      pendingCellFocus.current = null
+    }
+  })
+
+  // 보드로 바로 가기: 전체 보기면 중심 목표, 포커스 모드면 보고 있는 블록의 칸으로 간다.
+  function focusBoard() {
+    focusCell(activeCells[focusMode ? selectedBlock : 4])
+  }
+
+  function enterFocusMode(blockIndex: number) {
+    setSelectedBlock(blockIndex)
+    setFocusMode(true)
+    // 누른 확대 버튼이 사라지므로 그 블록의 칸으로 포커스를 옮긴다.
+    pendingCellFocus.current = activeCells[blockIndex]
+  }
+
+  // 칸 입력창의 키보드 조작 (#9)
+  // - 방향키: 커서가 글자 맨 앞/맨 끝이면 옆 칸으로 이동 (포커스 모드에서는 블록 안에서만)
+  // - Ctrl/Cmd+Enter: 실천 칸의 완료 체크 바꾸기
+  function handleCellKeyDown(
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+    index: number,
+  ) {
+    // 한글 등 조합 중인 입력은 건드리지 않는다.
+    if (event.nativeEvent.isComposing) {
+      return
+    }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      if (isDetailCell(index)) {
+        event.preventDefault()
+        toggleDone(index)
+      }
+      return
+    }
+    if (
+      !isArrowKey(event.key) ||
+      event.shiftKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    ) {
+      return
+    }
+    const input = event.currentTarget
+    if (
+      !shouldLeaveCell(event.key, input.selectionStart, input.selectionEnd, input.value.length)
+    ) {
+      return
+    }
+    const next = getNeighborCell(index, event.key, focusMode ? selectedBlock : null)
+    if (next === null) {
+      return
+    }
+    event.preventDefault()
+    focusCell(next)
+  }
+
+  function rememberActiveCell(index: number) {
+    const block = getBlockIndex(index)
+    setActiveCells((current) =>
+      current[block] === index
+        ? current
+        : current.map((cell, blockIndex) => (blockIndex === block ? index : cell)),
+    )
+  }
+
+  // 대화상자를 연 버튼을 기억했다가, 닫히면 그 버튼으로 포커스를 돌려준다.
+  // 버튼이 사라졌으면(예: 샘플을 불러와 안내가 없어짐) 보드로 보낸다.
+  function openDialog(dialog: HTMLDialogElement | null) {
+    dialogOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialog?.showModal()
+  }
+
+  function restoreDialogFocus() {
+    const opener = dialogOpener.current
+    dialogOpener.current = null
+    if (opener?.isConnected) {
+      opener.focus()
+    } else {
+      focusBoard()
+    }
   }
 
   function resetBoard() {
@@ -479,12 +609,12 @@ function App() {
     updateBackupMeta((meta) => ({ ...meta, dirtySince: null }))
     setSelectedBlock(4)
     setFocusMode(false)
-    setNotice({ message: t.resetSuccess, kind: 'success' })
+    showNotice({ message: t.resetSuccess, kind: 'success' })
   }
 
   function openSampleDialog() {
     endTextEditSession()
-    sampleDialog.current?.showModal()
+    openDialog(sampleDialog.current)
   }
 
   function closeSampleDialog() {
@@ -496,7 +626,11 @@ function App() {
     if (!moreOpen) {
       return
     }
-    moreMenu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus()
+    const items = moreMenu.current?.querySelectorAll<HTMLButtonElement>(
+      '[role="menuitem"]:not(:disabled)',
+    )
+    items?.[moreFocusLast.current ? items.length - 1 : 0]?.focus()
+    moreFocusLast.current = false
     function handlePointerDown(event: PointerEvent) {
       if (!moreMenu.current?.contains(event.target as Node)) {
         setMoreOpen(false)
@@ -542,8 +676,19 @@ function App() {
     }
   }
 
+  // 메뉴 버튼에서 아래/위 화살표로도 메뉴를 연다.
+  function handleMoreButtonKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      moreFocusLast.current = event.key === 'ArrowUp'
+      setMoreOpen(true)
+    }
+  }
+
   function runMoreAction(key: MoreActionKey) {
-    closeMoreMenu(false)
+    // 항목이 사라지기 전에 메뉴 버튼으로 포커스를 돌려 둔다.
+    // 대화상자를 닫으면 이 버튼으로 돌아온다.
+    closeMoreMenu(true)
     if (key === 'png') {
       void downloadBoardPng()
     } else if (key === 'print') {
@@ -567,7 +712,7 @@ function App() {
 
   function openPrintDialog() {
     endTextEditSession()
-    printDialog.current?.showModal()
+    openDialog(printDialog.current)
   }
 
   function closePrintDialog() {
@@ -600,7 +745,7 @@ function App() {
     setSelectedBlock(4)
     setFocusMode(false)
     closeSampleDialog()
-    setNotice({
+    showNotice({
       message: t.sampleLoaded(getSampleInfo(selectedSample, language).name),
       kind: 'success',
     })
@@ -627,7 +772,7 @@ function App() {
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
     markBackedUp()
-    setNotice({ message: t.backupSuccess, kind: 'success' })
+    showNotice({ message: t.backupSuccess, kind: 'success' })
   }
 
   async function downloadBoardPng() {
@@ -637,7 +782,7 @@ function App() {
       : frame
 
     if (!captureTarget) {
-      setNotice({ message: t.pngNoBoard, kind: 'error' })
+      showNotice({ message: t.pngNoBoard, kind: 'error' })
       return
     }
 
@@ -678,7 +823,7 @@ function App() {
         try {
           if (navigator.canShare({ files: [file] })) {
             await navigator.share({ files: [file], title: 'NineGrid' })
-            setNotice({ message: t.pngSuccess, kind: 'success' })
+            showNotice({ message: t.pngSuccess, kind: 'success' })
             return
           }
         } catch {
@@ -711,9 +856,9 @@ function App() {
         link.remove()
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-      setNotice({ message: t.pngSuccess, kind: 'success' })
+      showNotice({ message: t.pngSuccess, kind: 'success' })
     } catch (error) {
-      setNotice({
+      showNotice({
         message:
           error instanceof Error
             ? t.pngError(error.message)
@@ -755,12 +900,12 @@ function App() {
       markBackedUp()
       setSelectedBlock(4)
       setFocusMode(false)
-      setNotice({
+      showNotice({
         message: getTranslation(restoredLanguage).restoreSuccess,
         kind: 'success',
       })
     } catch (error) {
-      setNotice({
+      showNotice({
         message:
           error instanceof Error
             ? error.message
@@ -803,25 +948,39 @@ function App() {
     ]
       .filter(Boolean)
       .join(' ')
+    // 스크린 리더가 읽을 칸 이름: "3번 블록, 실천 5" (#9)
+    const blockIndex = getBlockIndex(index)
+    const cellNumber = getCellNumber(index)
+    const cellName = t.cellName(
+      blockIndex + 1,
+      isHub
+        ? t.centerGoal
+        : isSynced
+          ? t.linkedGoal
+          : isSubgoal
+            ? t.numberedSubgoal(cellNumber ?? 0)
+            : t.numberedAction(cellNumber ?? 0),
+    )
+    const inputLabel =
+      isAction && hasText(cell)
+        ? `${cellName}, ${cell.done ? t.doneState : t.notDoneState}`
+        : cellName
 
     return (
       <article className={cellClass} key={index}>
+        {/* 연동 칸은 직접 고칠 수 없지만, 방향키로 들어가 내용을 읽을 수 있게 readOnly로 둔다. */}
         <textarea
-          aria-label={
-            isHub
-              ? t.centerGoal
-              : isSynced
-                ? t.linkedGoal
-                : isSubgoal
-                  ? t.subgoal
-                  : t.action
-          }
+          aria-label={inputLabel}
           className="mandala-cell__input"
-          disabled={isSynced}
+          data-cell={index}
           maxLength={70}
           onBlur={endTextEditSession}
           onChange={(event) => updateText(index, event.target.value)}
+          onFocus={() => rememberActiveCell(index)}
+          onKeyDown={(event) => handleCellKeyDown(event, index)}
           placeholder={placeholder}
+          readOnly={isSynced}
+          tabIndex={activeCells[blockIndex] === index ? 0 : -1}
           value={cell.text}
         />
         <div className="mandala-cell__footer">
@@ -841,20 +1000,15 @@ function App() {
             <span className="cell-caption">{t.subgoal}</span>
           )}
           {isAction && (
+            // Tab 정지점을 줄이려고 Tab 순서에서는 뺀다. 키보드는 입력창에서 Ctrl/Cmd+Enter로 체크한다.
             <button
-              aria-disabled={!hasText(cell)}
-              aria-label={
-                !hasText(cell)
-                  ? t.completedDisabled
-                  : cell.done
-                    ? t.undoCompleted
-                    : t.completed
-              }
-              aria-pressed={cell.done}
+              aria-label={t.markDone(cellName)}
+              aria-pressed={hasText(cell) && cell.done}
               className="cell-check"
               disabled={!hasText(cell)}
               onClick={() => toggleDone(index)}
-              title={!hasText(cell) ? t.completedDisabled : undefined}
+              tabIndex={-1}
+              title={!hasText(cell) ? t.completedDisabled : `${t.markDone(cellName)} (${CHECK_SHORTCUT})`}
               type="button"
             >
               {cell.done && <Check aria-hidden="true" size={11} strokeWidth={3} />}
@@ -937,10 +1091,7 @@ function App() {
             <button
               aria-label={t.expandBlock(getBlockTitle(cells, blockIndex, language))}
               className="block-select"
-              onClick={() => {
-                setSelectedBlock(blockIndex)
-                setFocusMode(true)
-              }}
+              onClick={() => enterFocusMode(blockIndex)}
               type="button"
             >
               {t.expand}
@@ -977,6 +1128,16 @@ function App() {
 
   return (
     <main className="app-shell min-h-screen">
+      <a
+        className="skip-link"
+        href="#board"
+        onClick={(event) => {
+          event.preventDefault()
+          focusBoard()
+        }}
+      >
+        {t.skipToBoard}
+      </a>
       <header className="topbar">
         <a aria-label={t.homeLabel} className="brand" href="/">
           <span aria-hidden="true" className="brand-mark">
@@ -998,7 +1159,11 @@ function App() {
             onClick={() => setFocusMode((active) => !active)}
             type="button"
           >
-            {focusMode ? <Grid2X2 size={16} /> : <Focus size={16} />}
+            {focusMode ? (
+              <Grid2X2 aria-hidden="true" size={16} />
+            ) : (
+              <Focus aria-hidden="true" size={16} />
+            )}
             <span>{focusMode ? t.showAll : t.focusMode}</span>
           </button>
           <span className="toolbar-divider" />
@@ -1151,6 +1316,7 @@ function App() {
               aria-label={hasUnsavedChanges ? `${t.moreActions} · ${t.unsavedChanges}` : t.moreActions}
               className="icon-button icon-button--backup"
               onClick={() => setMoreOpen((open) => !open)}
+              onKeyDown={handleMoreButtonKeyDown}
               ref={moreButton}
               title={t.moreActions}
               type="button"
@@ -1165,6 +1331,7 @@ function App() {
                 id="toolbar-more-menu"
                 onKeyDown={handleMoreMenuKeyDown}
                 role="menu"
+                tabIndex={-1}
               >
                 {moreActions.map(({ key, label, Icon, disabled, dot }) => (
                   <button
@@ -1178,7 +1345,12 @@ function App() {
                   >
                     <Icon aria-hidden="true" size={17} />
                     <span>{label}</span>
-                    {dot && <span aria-hidden="true" className="toolbar-more__dot" />}
+                    {dot && (
+                      <>
+                        <span className="visually-hidden">{` · ${t.unsavedChanges}`}</span>
+                        <span aria-hidden="true" className="toolbar-more__dot" />
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1302,6 +1474,7 @@ function App() {
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={progress}
+            aria-valuetext={`${progress}%, ${t.completedCount(completedCount, writtenCount)}`}
             className="progress-track"
             role="progressbar"
           >
@@ -1368,11 +1541,9 @@ function App() {
               <span>{t.boardLabel} <span className="board-dim">· {t.boardSize}</span></span>
             )}
           </div>
-          <div aria-live="polite" className="board-toolbar__hint">
+          <div className="board-toolbar__hint">
             {notice ? (
-              <span className={`notice notice--${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>
-                {notice.message}
-              </span>
+              <span className={`notice notice--${notice.kind}`}>{notice.message}</span>
             ) : (
               <>
                 <span className="autosave-dot" />
@@ -1384,11 +1555,25 @@ function App() {
           </div>
         </div>
 
+        {/* 알림과 달성률 변화를 스크린 리더에 읽어 준다. 내용이 바뀌어야 읽히므로 영역은 항상 둔다. (#9) */}
+        <div className="visually-hidden" role="status">
+          {notice?.kind === 'success' ? notice.message : notice ? '' : progressAnnouncement}
+        </div>
+        <div className="visually-hidden" role="alert">
+          {notice?.kind === 'error' ? notice.message : ''}
+        </div>
+
         <div
           className={`board-frame ${focusMode ? 'board-frame--focus' : ''}`}
+          id="board"
           ref={boardFrame}
         >
-          <div className="mandala-board">
+          <div
+            aria-describedby="board-keyboard-hint"
+            aria-label={t.boardLabel}
+            className="mandala-board"
+            role="group"
+          >
             {focusMode ? renderBlock(selectedBlock) : Array.from({ length: 9 }, (_, index) => renderBlock(index))}
           </div>
         </div>
@@ -1398,11 +1583,17 @@ function App() {
           <span><i className="legend-dot legend-dot--linked" /> {t.legendLinked}</span>
           <span><i className="legend-dot legend-dot--action" /> {t.legendAction}</span>
         </div>
+        <p className="board-keyboard-hint" id="board-keyboard-hint">
+          {t.keyboardHint(CHECK_SHORTCUT)}
+        </p>
       </section>
 
+      {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
       <dialog
         aria-labelledby="sample-dialog-title"
         className="sample-dialog"
+        onClose={restoreDialogFocus}
         onClick={(event) => {
           // 바깥(배경)을 누르면 닫는다.
           if (event.target === event.currentTarget) {
@@ -1499,9 +1690,12 @@ function App() {
         </form>
       </dialog>
 
+      {/* 바깥(배경) 클릭으로 닫기는 마우스용 보조 동작이다. 키보드는 Esc와 닫기 버튼으로 닫는다. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
       <dialog
         aria-labelledby="print-dialog-title"
         className="sample-dialog"
+        onClose={restoreDialogFocus}
         onClick={(event) => {
           // 바깥(배경)을 누르면 닫는다.
           if (event.target === event.currentTarget) {
