@@ -45,9 +45,15 @@ export type Translation = {
   actionPlaceholder: string
   expandBlock: (title: string) => string
   expand: string
-  completed: string
-  undoCompleted: string
   completedDisabled: string
+  skipToBoard: string
+  cellName: (block: number, kind: string) => string
+  numberedAction: (number: number) => string
+  numberedSubgoal: (number: number) => string
+  doneState: string
+  notDoneState: string
+  markDone: (cell: string) => string
+  keyboardHint: (checkShortcut: string) => string
   legendCenter: string
   legendLinked: string
   legendAction: string
@@ -165,9 +171,16 @@ export const translations: Record<Language, Translation> = {
     actionPlaceholder: '예: 오늘 할 작은 실천',
     expandBlock: (title) => `${title} 블록 확대`,
     expand: '확대',
-    completed: '실천 완료 표시',
-    undoCompleted: '완료 표시 해제',
     completedDisabled: '실천 내용을 먼저 작성하세요',
+    skipToBoard: '보드로 바로 가기',
+    cellName: (block, kind) => `${block}번 블록, ${kind}`,
+    numberedAction: (number) => `실천 ${number}`,
+    numberedSubgoal: (number) => `세부 목표 ${number}`,
+    doneState: '완료',
+    notDoneState: '미완료',
+    markDone: (cell) => `${cell} 완료 표시`,
+    keyboardHint: (checkShortcut) =>
+      `키보드: 방향키로 칸 이동 · Tab으로 다음 블록 · ${checkShortcut}로 실천 완료 체크`,
     legendCenter: '중심 목표',
     legendLinked: '자동 연동 영역',
     legendAction: '클릭해 실천 완료',
@@ -291,9 +304,16 @@ export const translations: Record<Language, Translation> = {
     actionPlaceholder: 'e.g. One small action for today',
     expandBlock: (title) => `Expand ${title} block`,
     expand: 'Expand',
-    completed: 'Mark action complete',
-    undoCompleted: 'Undo completion',
     completedDisabled: 'Write an action first',
+    skipToBoard: 'Skip to board',
+    cellName: (block, kind) => `Block ${block}, ${kind}`,
+    numberedAction: (number) => `action ${number}`,
+    numberedSubgoal: (number) => `subgoal ${number}`,
+    doneState: 'done',
+    notDoneState: 'not done',
+    markDone: (cell) => `Mark ${cell} as done`,
+    keyboardHint: (checkShortcut) =>
+      `Keyboard: arrow keys move between cells · Tab goes to the next block · ${checkShortcut} checks off an action`,
     legendCenter: 'Central goal',
     legendLinked: 'Linked areas',
     legendAction: 'Click to complete an action',
@@ -415,9 +435,16 @@ export const translations: Record<Language, Translation> = {
     actionPlaceholder: '例: 今日できる小さな行動',
     expandBlock: (title) => `${title}ブロックを拡大`,
     expand: '拡大',
-    completed: '行動を完了にする',
-    undoCompleted: '完了を取り消す',
     completedDisabled: '先に行動を記入してください',
+    skipToBoard: 'ボードへ移動',
+    cellName: (block, kind) => `${block}番ブロック、${kind}`,
+    numberedAction: (number) => `行動 ${number}`,
+    numberedSubgoal: (number) => `小目標 ${number}`,
+    doneState: '完了',
+    notDoneState: '未完了',
+    markDone: (cell) => `${cell}を完了にする`,
+    keyboardHint: (checkShortcut) =>
+      `キーボード: 矢印キーでマスを移動 · Tabで次のブロック · ${checkShortcut}で行動を完了`,
     legendCenter: '中心目標',
     legendLinked: '自動連動する分野',
     legendAction: 'クリックして完了',
@@ -537,9 +564,16 @@ export const translations: Record<Language, Translation> = {
     actionPlaceholder: '例如：今天可以完成的一小步',
     expandBlock: (title) => `放大${title}区块`,
     expand: '放大',
-    completed: '标记为已完成',
-    undoCompleted: '取消完成标记',
     completedDisabled: '请先填写行动内容',
+    skipToBoard: '跳到九宫格',
+    cellName: (block, kind) => `第 ${block} 个区块，${kind}`,
+    numberedAction: (number) => `行动 ${number}`,
+    numberedSubgoal: (number) => `子目标 ${number}`,
+    doneState: '已完成',
+    notDoneState: '未完成',
+    markDone: (cell) => `将${cell}标记为已完成`,
+    keyboardHint: (checkShortcut) =>
+      `键盘：方向键在格子间移动 · Tab 切换到下一个区块 · ${checkShortcut} 标记行动完成`,
     legendCenter: '中心目标',
     legendLinked: '自动关联领域',
     legendAction: '点击标记完成',
